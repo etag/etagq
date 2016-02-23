@@ -1,1 +1,1 @@
-from tasks import __init.py
+from tasks import __init__.py
