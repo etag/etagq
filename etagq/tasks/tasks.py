@@ -10,16 +10,16 @@ from datetime import datetime
 #Default base directory 
 basedir="/data/static/"
 
-hostname=os.environ.get("host_hostname", '10.195.67.43')
+ahostname=os.environ.get("host_hostname", '10.195.67.43')
 
 def insert_tag_reads(row,session):
     payload={'format':'json','tag_id':row['TagID']}
-    r1=session.get('http://{0}/api/etag/tags/'.format(hostname),params=payload)
+    r1=session.get('http://{0}/api/etag/tags/'.format(ahostname),params=payload)
     if r1.json()['count'] <1:
         payload={'tag_id':row['TagID'],'name':'ETAG TAG_ID {0}'.format(row['TagID']),'description':'ETAG TAG_ID {0}'.format(row['TagID'])}
-        session.post('http://{0}/api/etag/tags/'.format(hostname),data=payload)
+        session.post('http://{0}/api/etag/tags/'.format(ahostname),data=payload)
     payload={'reader':row['reader_id'],'tag':row['TagID'],'tag_timestamp':row['timestamp']}
-    r2=session.post('http://{0}/api/etag/tag_reads/?format=json'.format(hostname),data=payload)
+    r2=session.post('http://{0}/api/etag/tag_reads/?format=json'.format(ahostname),data=payload)
     return r2.status_code
 
 def try_data_db(reader_id,file_path,session):
@@ -42,7 +42,8 @@ def etagDataUpload(reader_id,file_path,token):
 	headers={'Authorization':'Token {0}'.format(token)}
 	payload = {'format':'json','reader_id':reader_id}
         s = requests.Session()
-	r = s.get('http://{0}/api/etag/readers/'.format(hostname),params=payload,headers=headers)
+        ahostname="10.178.59.111"
+	r = s.get('http://{0}/api/etag/readers/'.format(ahostname),params=payload,headers=headers)
         if r.json()['count'] >=1:
             return try_data_db(reader_id,file_path,s)
         else:
