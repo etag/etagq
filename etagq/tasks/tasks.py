@@ -10,7 +10,7 @@ from datetime import datetime
 #Default base directory 
 basedir="/data/static/"
 
-hostname=os.environ.get("hostname", '10.195.67.43')
+hostname=os.environ.get("host-hostname", '10.195.67.43')
 
 def insert_tag_reads(row,session):
     payload={'format':'json','tag_id':row['TagID']}
@@ -28,7 +28,7 @@ def try_data_db(reader_id,file_path,session):
 	#data
 	columnnames=["TagID","Date","Time"]
 	data.columns=columnnames
-	data['timestmp']=pd.to_datetime(data['Date'] + ' ' + data['Time'])
+	data['timestamp']=pd.to_datetime(data['Date'] + ' ' + data['Time'])
         #data.Date.str.cat(data.Time)
 	#df['Period'] = df.Year.str.cat(df.Quarter)
 	data1=data[['TagID','timestmp']]
