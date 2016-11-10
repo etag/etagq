@@ -10,7 +10,7 @@ from datetime import datetime
 #Default base directory 
 basedir="/data/static/"
 
-hostname=os.environ.get("host-hostname", '10.195.67.43')
+hostname=os.environ.get("host_hostname", '10.195.67.43')
 
 def insert_tag_reads(row,session):
     payload={'format':'json','tag_id':row['TagID']}
