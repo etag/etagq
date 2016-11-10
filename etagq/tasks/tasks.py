@@ -41,7 +41,8 @@ def etagDataUpload(reader_id,file_path,token):
         headers={'Authorization':'Token {0}'.format(token)}
         payload = {'format':'json','reader_id':reader_id}
         s = requests.Session()
-        r = s.get('http://{0}/api/etag/readers/'.format(hostname),params=payload,headers=headers)
+        s.headers.update(headers)
+        r = s.get('http://{0}/api/etag/readers/'.format(hostname),params=payload)
         if r.json()['count'] >=1:
             return try_data_db(reader_id,file_path,s)
         else:
