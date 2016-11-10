@@ -31,7 +31,7 @@ def try_data_db(reader_id,file_path,session):
 	data['timestamp']=pd.to_datetime(data['Date'] + ' ' + data['Time'])
         #data.Date.str.cat(data.Time)
 	#df['Period'] = df.Year.str.cat(df.Quarter)
-	data1=data[['TagID','timestmp']]
+	data1=data[['TagID','timestamp']]
         data1['reader_id']=reader_id
         data1.apply( (lambda x: insert_tag_reads(x,session)), axis=1)
         return "Tag Reads recored: {0}".format(len(data1.index))
