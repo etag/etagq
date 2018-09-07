@@ -19,11 +19,11 @@ def parseFile(path, filetype):
 
     df = pd.read_csv(path)
     file_fields = list(df.columns.str.upper())
-    if filetype = "animals":
+    if filetype == "animals":
         required_fields = animal_required_fields
-    if filetype = "locations":
+    if filetype == "locations":
         required_fields = location_required_fields
-    if filetype = "tags":
+    if filetype == "tags":
         required_fields = tag_required_fields
     if not all([column in file_fields for column in required_fields]):
         return ("ERROR", "file does not have all required fields")
