@@ -8,4 +8,5 @@ setup(name='etagq',
           'sqlalchemy==1.2.12',
           'psycopg2==2.7.3.1',
       ],
+      include_package_data=True,
 )
