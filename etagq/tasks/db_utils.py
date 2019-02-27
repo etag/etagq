@@ -8,6 +8,8 @@ import sqlalchemy.exc
 from sqlalchemy.engine.url import URL
 from sqlalchemy import create_engine, text
 
+import pandas as pd
+
 PG_DB = {
     'drivername': 'postgres',
     'username': DB_USERNAME,
@@ -30,7 +32,7 @@ def _connect_db():
 
 
 def get_columns(table, columns):
-    """ return cursor from table with defined columns """
+    """ return dataframe of table with defined columns """
     query = "select :columns from :table;"
     conn = _connect_db()
     #if conn:
@@ -38,6 +40,6 @@ def get_columns(table, columns):
     #return None
     #return {"testing": str(conn)}
     try:
-        return list(conn.execute(text("Select * from animal_hit_reader;")).fetchall())
+        return pd.DataFrame(conn.execute(text("Select * from animal_hit_reader;")).fetchall())
     except Exception as e:
         return {"ERROR": e.message}
