@@ -12,22 +12,90 @@ basedir="/data/static/"
 
 
 def parseFile(path, filetype):
-    #TODO add required fields to the following lists
-    animal_required_fields = []
-    location_required_fields = []
-    tag_required_fields = ["UUID", "TAG_ID", "TIMESTAMP"]
-
+    """
+    Parse file and check for required columns
+    """
     df = pd.read_csv(path)
     file_fields = list(df.columns.str.upper())
-    if filetype == "animals":
-        required_fields = animal_required_fields
-    if filetype == "locations":
-        required_fields = location_required_fields
-    if filetype == "tags":
-        required_fields = tag_required_fields
-    if not all([column in file_fields for column in required_fields]):
-        return ("ERROR", "file does not have all required fields")
 
+    if filetype == "animals":
+        # details regarding tagged animals
+        """
+        Relationship between file fields and database tables and fields
+        Animals Table:
+            animal_id ??
+            ANIMAL_SPECIES = species
+            field_data ??
+        TaggedAnimal Table:
+            TAG_ID = tag_id
+            animal_id ??
+            TAG_STARTDATE = start_time
+            TAG_ENDDATE = end_time
+            field_data ??
+        Tags Table:
+            TAG_ID = tag_id
+            description ??
+        TagOwner Table:
+            user_id ?? default to logged in user - how to handle if already exists?
+            TAG_ID = tag_id
+            TAG_STARTDATE = start_time
+            TAG_ENDDATE = end_time ??
+        """
+        required_fields = ["TAG_ID", "TAG_STARTDATE", "ANIMAL_SPECIES"]  # TODO: add required fields
+        optional_fields = ["TAG_ENDDATE"]
+        # remaining fields should be added to field_data as a single json object
+        if not all([column in file_fields for column in required_fields]):
+            return {"ERROR": "file does not have all required fields"}
+
+    if filetype == "locations":
+        # reader locations
+        """
+        Relationship between file fields and database tables and fields
+        Readers Table:
+           UUID = reader_id
+           DESCRIPTION = description
+           user_id ?? default to logged in user
+        Locations Table:
+           location_id ??
+           NAME = name
+           LATITUDE = latitude
+           LONGITUDE = longitude
+           active ?? default to True
+        ReaderLocation Table:
+           reader_id ??
+           location_it ??
+           STARTDATE = start_timestamp
+           ENDDATE = end_timestamp
+        """
+        # TODO: update if changes are made to the database tables
+        required_fields = ["UUID", "NAME", "STARTDATE", "LATITUDE",
+            "LONGITUDE", "DESCRIPTION"]
+        optional_fields = ["ENDDATE", "STUDYTYPE"]
+        if not all([column in file_fields for column in required_fields]):
+            return {"ERROR": "file does not have all required fields"}
+
+    if filetype == "tags":
+        # tags seen by readers
+        """
+        Relationship between file fields and database tables and fields
+        AnimalHitReader Table:
+            UUID = reader_id
+            animal_id ??
+            TAG_ID = tag_id
+        TagReads Table:
+            tag_reads_id ??
+            UUID = reader_id
+            TAG_ID = tag_id
+            user_id ?? default to logged in user
+            TIMESTAMP = tag_read_time
+            field_data ??
+        """
+        # UUID is the reader ID
+        required_fields = ["UUID", "TAG_ID", "TIMESTAMP"]
+        if not all([column in file_fields for column in required_fields]):
+            return {"ERROR": "file does not have all required fields"}
+
+    return("Success")
     #TODO upsert file data into databse
 
 
@@ -49,6 +117,6 @@ def etagDataUpload(local_file,request_data):
     filetype = request_data.get('filetype', None)
     if filetype not in filetypes:
         return ("ERROR", "filetype must be one of: animals, locations, tags")
-    parseFile(local_file, filetype)
+    parse_status = parseFile(local_file, filetype)
     #TODO update return to provide results to user
-    return (local_file, request_data)
+    return (local_file, request_data, parse_status)
