@@ -37,5 +37,7 @@ def get_columns(table, columns):
     #    return conn.execute(text(query), table=table, columns=columns).fetchall()
     #return None
     #return {"testing": str(conn)}
-    return dict(conn.execute(text("Select * from :table;"), table=table).fetchall())
-
+    try:
+        return dict(conn.execute(text("Select * from :table;"), table=table).fetchall())
+    except Exception as e:
+        return {"ERROR": (e.message, e.args)}
