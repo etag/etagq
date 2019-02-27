@@ -38,6 +38,6 @@ def get_columns(table, columns):
     #return None
     #return {"testing": str(conn)}
     try:
-        return dict(conn.execute(text("Select * from :table;"), table=table).fetchall())
+        return conn.execute(text("Select * from animal_hit_reader;").fetchall()
     except Exception as e:
-        return {"ERROR": (e.message, e.args)}
+        return {"ERROR": e.message}
