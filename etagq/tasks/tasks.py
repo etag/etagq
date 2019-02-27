@@ -100,7 +100,7 @@ def parseFile(path, filetype, userid):
         # TODO: add animal_id to animalhitreader_df dataframe
         tagreads_df = df[["UUID", "TAG_ID", "TIMESTAMP"]]
         tagreads_df["USERID"] = userid
-        return dict(get_columns("animal_hit_reader", ["reader_id", "tag_id"])
+        return dict(get_columns("animal_hit_reader", ["reader_id", "tag_id"]))
 
     return("Success")
     #TODO upsert file data into databse
@@ -122,7 +122,7 @@ def etagDataUpload(local_file,request_data):
     
     filetypes = ["animals", "locations", "tags"]
     filetype = request_data.get('filetype', None)
-    userid = requests_data.get('userid', None)
+    userid = request_data.get('userid', None)
     if filetype not in filetypes:
         return {"ERROR": "filetype must be one of: animals, locations, tags"}
     if not userid:
