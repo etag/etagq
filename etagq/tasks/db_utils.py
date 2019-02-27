@@ -35,5 +35,5 @@ def get_columns(table, columns):
     #if conn:
     #    return conn.execute(text(query), table=table, columns=columns).fetchall()
     #return None
-    return {"testing": ENGINE}
+    return {"testing": conn} 
 
