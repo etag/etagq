@@ -5,8 +5,8 @@ setup(name='etagq',
       version='0.0',
       packages= find_packages(),
       install_requires=[
-          'sqlalchemy==1.2.12',
-          'psycopg2==2.7.3.1',
+          'sqlalchemy',
+          'psycopg2',
       ],
       include_package_data=True,
 )
