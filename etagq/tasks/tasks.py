@@ -101,7 +101,7 @@ def parseFile(path, filetype, userid):
         # TODO: add animal_id to animalhitreader_df dataframe
         tagreads_df = df[["UUID", "TAG_ID", "TIMESTAMP"]]
         tagreads_df["USERID"] = userid
-        return dict(get_columns("animal_hit_reader", ["reader_id", "tag_id"]))
+        return list(get_columns("animal_hit_reader", ["reader_id", "tag_id"]))
 
     return("Success")
     #TODO upsert file data into databse
