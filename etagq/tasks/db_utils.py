@@ -40,6 +40,9 @@ def get_columns(table, columns):
     #return None
     #return {"testing": str(conn)}
     try:
-        return pd.read_sql_query(conn.execute(text("Select :columns from animal_hit_reader;"), columns=columns))
+        results = conn.execute(text("Select :columns from animal_hit_reader;"), columns=columns)
+        df = pd.DataFrame(results.fetchall())
+        df.columns = results.keys()
+        return df
     except Exception as e:
         return {"ERROR": e.message}
