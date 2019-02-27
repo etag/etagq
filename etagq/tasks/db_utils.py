@@ -19,19 +19,20 @@ PG_DB = {
 ENGINE = create_engine(URL(**PG_DB))
 
 
-def _connect_db():
-    try:
-        conn = ENGINE.connect()
-        return conn
-    except OperationalError as e:
-        logging.error("Error with DB connection:\n{0}".format(e))
-        return None
+#def _connect_db():
+#    try:
+#        conn = ENGINE.connect()
+#        return conn
+#    except OperationalError as e:
+#        logging.error("Error with DB connection:\n{0}".format(e))
+#        return None
 
 
 def get_columns(table, columns):
     """ return cursor from table with defined columns """
     query = "select :columns from :table"
-    conn = _connect_db()
+    #conn = _connect_db()
+    conn = ENGINE.connect()
     if conn:
         return conn.execute(text(query), table=table, columns=columns).fetchall()
     return None
