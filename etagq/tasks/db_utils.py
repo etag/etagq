@@ -43,6 +43,6 @@ def get_columns(table, columns):
         results = conn.execute(text("Select :columns from animal_hit_reader;"), columns=columns)
         df = pd.DataFrame(results.fetchall())
         df.columns = results.keys()
-        return len(df)
+        return df.to_dict(orient="records")
     except Exception as e:
         return {"ERROR": e.message}
