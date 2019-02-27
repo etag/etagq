@@ -84,7 +84,7 @@ def parseFile(path, filetype, userid):
         AnimalHitReader (animal_hit_reader) Table:
             UUID = reader_id
             animal_id ??
-            TAG_ID = tag_id
+            TAG_ID = tag_id_id
         TagReads (tag_reads) Table:
             tag_reads_id ??
             UUID = reader_id
@@ -102,7 +102,7 @@ def parseFile(path, filetype, userid):
         tagreads_df = df[["UUID", "TAG_ID", "TIMESTAMP"]]
         tagreads_df["USERID"] = userid
         try:
-            return get_columns("animal_hit_reader", ["reader_id", "tag_id"])
+            return get_columns("animal_hit_reader", ["reader_id", "tag_id_id"])
         except Exception as e:
             return {"ERROR": e.message}
 

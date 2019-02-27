@@ -40,8 +40,8 @@ def get_columns(table, columns):
     #return None
     #return {"testing": str(conn)}
     try:
-        #results = conn.execute(text("Select :columns from animal_hit_reader;"), columns=columns)
-        results = conn.execute(text("Select * from animal_hit_reader;"))
+        results = conn.execute(text("Select :columns from animal_hit_reader;"), columns=columns)
+        #results = conn.execute(text("Select * from animal_hit_reader;"))
         df = pd.DataFrame(results.fetchall())
         df.columns = results.keys()
         return df.to_dict(orient="records")
