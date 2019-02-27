@@ -19,7 +19,7 @@ def parseFile(path, filetype, userid):
     """
     df = pd.read_csv(path)
     file_fields = list(df.columns.str.upper())
-    df.columns = map(str.upper(), df.columns)  # set column headers to upper case
+    df.columns = map(str.upper, df.columns)  # set column headers to upper case
 
     if filetype == "animals":
         # details regarding tagged animals
