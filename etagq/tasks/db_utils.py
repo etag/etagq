@@ -30,10 +30,11 @@ def _connect_db():
 
 def get_columns(table, columns):
     """ return cursor from table with defined columns """
-    query = "select :columns from :table"
+    query = "select :columns from :table;"
     conn = _connect_db()
     #if conn:
     #    return conn.execute(text(query), table=table, columns=columns).fetchall()
     #return None
-    return {"testing": str(conn)} 
+    #return {"testing": str(conn)}
+    return conn.execute(text("Select * from :table;"), table=table).fetchall()
 
