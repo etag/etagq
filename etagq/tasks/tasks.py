@@ -7,7 +7,7 @@ import os, sys
 import pandas as pd
 from datetime import datetime
 
-from db_utils import get_columns
+from db_utils import *
 
 #Default base directory 
 basedir="/data/static/"
