@@ -32,7 +32,7 @@ def _connect_db():
 
 
 def get_columns(table, columns):
-    """ return dataframe of table with defined columns """
+    """ return dict of table with defined columns """
     query = "select :columns from :table;"
     conn = _connect_db()
     #if conn:
@@ -40,6 +40,6 @@ def get_columns(table, columns):
     #return None
     #return {"testing": str(conn)}
     try:
-        return pd.DataFrame(conn.execute(text("Select * from animal_hit_reader;")).fetchall())
+        return dict(conn.execute(text("Select * from animal_hit_reader;")).fetchall())
     except Exception as e:
         return {"ERROR": e.message}
