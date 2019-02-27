@@ -1,11 +1,11 @@
 from celeryconfig import DB_USERNAME, DB_PASSWORD, DB_NAME, DB_HOST, DB_PORT
 import celeryconfig
 
+import logging
+
 import sqlalchemy
 from sqlalchemy.engine.url import URL
 from sqlalchemy import create_engine, text
-
-import logging
 
 PG_DB = {
     'drivername': 'postgres',
@@ -32,6 +32,8 @@ def get_columns(table, columns):
     """ return cursor from table with defined columns """
     query = "select :columns from :table"
     conn = _connect_db()
-    if conn:
-        return conn.execute(text(query), table=table, columns=columns).fetchall()
-    return None
+    #if conn:
+    #    return conn.execute(text(query), table=table, columns=columns).fetchall()
+    #return None
+    return "reached get columns"
+
