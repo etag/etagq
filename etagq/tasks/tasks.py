@@ -7,11 +7,13 @@ import os, sys
 import pandas as pd
 from datetime import datetime
 
+from db_utils import get_columns
+
 #Default base directory 
 basedir="/data/static/"
 
 
-def parseFile(path, filetype):
+def parseFile(path, filetype, userid):
     """
     Parse file and check for required columns
     """
@@ -63,7 +65,7 @@ def parseFile(path, filetype):
            active ?? default to True
         ReaderLocation Table:
            reader_id ??
-           location_it ??
+           location_id ??
            STARTDATE = start_timestamp
            ENDDATE = end_timestamp
         """
@@ -78,11 +80,11 @@ def parseFile(path, filetype):
         # tags seen by readers
         """
         Relationship between file fields and database tables and fields
-        AnimalHitReader Table:
+        AnimalHitReader (animal_hit_reader) Table:
             UUID = reader_id
             animal_id ??
             TAG_ID = tag_id
-        TagReads Table:
+        TagReads (tag_reads) Table:
             tag_reads_id ??
             UUID = reader_id
             TAG_ID = tag_id
@@ -94,6 +96,11 @@ def parseFile(path, filetype):
         required_fields = ["UUID", "TAG_ID", "TIMESTAMP"]
         if not all([column in file_fields for column in required_fields]):
             return {"ERROR": "file does not have all required fields"}
+        animalhitreader_df = df[["UUID", "TAG_ID"]]
+        # TODO: add animal_id to animalhitreader_df dataframe
+        tagreads_df = df[["UUID", "TAG_ID", "TIMESTAMP"]]
+        tagreads_df["USERID"] = userid
+        return dict(get_columns("animal_hit_reader", ["reader_id", "tag_id"])
 
     return("Success")
     #TODO upsert file data into databse
@@ -115,8 +122,11 @@ def etagDataUpload(local_file,request_data):
     
     filetypes = ["animals", "locations", "tags"]
     filetype = request_data.get('filetype', None)
+    userid = requests_data.get('userid', None)
     if filetype not in filetypes:
-        return ("ERROR", "filetype must be one of: animals, locations, tags")
-    parse_status = parseFile(local_file, filetype)
+        return {"ERROR": "filetype must be one of: animals, locations, tags"}
+    if not userid:
+        return {"ERROR": "missing userid"}
+    parse_status = parseFile(local_file, filetype, userid)
     #TODO update return to provide results to user
     return (local_file, request_data, parse_status)
