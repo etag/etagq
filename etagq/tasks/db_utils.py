@@ -4,6 +4,7 @@ import celeryconfig
 import logging
 
 import sqlalchemy
+import sqlalchemy.exc
 from sqlalchemy.engine.url import URL
 from sqlalchemy import create_engine, text
 
