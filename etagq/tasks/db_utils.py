@@ -4,7 +4,8 @@ import celeryconfig
 import logging
 
 import sqlalchemy
-import sqlalchemy.exc
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.orm import Session
 from sqlalchemy.engine.url import URL
 from sqlalchemy import create_engine, text
 
@@ -19,7 +20,11 @@ PG_DB = {
     'port': DB_PORT
     }
 
-ENGINE = create_engine(URL(**PG_DB))
+Base = automap_base()
+engine = create_engine(URL(**PG_DB))
+Base.prepare(engine, reflect=True)
+
+AnimalHitReader = Base.classes.animal_hit_reader
 
 
 def _connect_db():
@@ -31,19 +36,24 @@ def _connect_db():
         return None
 
 
+#def get_columns(table, columns):
+#    """ return dict of table with defined columns """
+#    query = "select :columns from :table;"
+#    conn = _connect_db()
+#    #if conn:
+#    #    return conn.execute(text(query), table=table, columns=columns).fetchall()
+#    #return None
+#    #return {"testing": str(conn)}
+#    try:
+#        results = conn.execute(text("Select :columns from animal_hit_reader;"), columns=columns)
+#        #results = conn.execute(text("Select * from animal_hit_reader;"))
+#        df = pd.DataFrame(results.fetchall())
+#        df.columns = results.keys()
+#        return df.to_dict(orient="records")
+#    except Exception as e:
+#        return {"ERROR": e.message}
+
 def get_columns(table, columns):
-    """ return dict of table with defined columns """
-    query = "select :columns from :table;"
-    conn = _connect_db()
-    #if conn:
-    #    return conn.execute(text(query), table=table, columns=columns).fetchall()
-    #return None
-    #return {"testing": str(conn)}
-    try:
-        results = conn.execute(text("Select :columns from animal_hit_reader;"), columns=columns)
-        #results = conn.execute(text("Select * from animal_hit_reader;"))
-        df = pd.DataFrame(results.fetchall())
-        df.columns = results.keys()
-        return df.to_dict(orient="records")
-    except Exception as e:
-        return {"ERROR": e.message}
+    with Session(engine) as session:
+        result = session.query(AnimalHitReader).first()
+        return result.reader_id
