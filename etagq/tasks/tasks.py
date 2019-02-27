@@ -8,7 +8,6 @@ import pandas as pd
 from datetime import datetime
 
 from db_utils import *
-import sqlalchemy
 
 #Default base directory 
 basedir="/data/static/"
