@@ -65,6 +65,7 @@ def load_tagreads(df, user_id):
     try:
         session.commit()
         loaded = True
+        print("loaded {0}".format(len(df)))
     except SQLAlchemyError as e:
         print(e.message)
         loaded = False
