@@ -4,6 +4,7 @@ import celeryconfig
 from datetime import datetime
 import logging
 import pytz
+import pandas as pd
 
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.exc import SQLAlchemyError
@@ -65,7 +66,7 @@ def load_tagreads(df, user_id):
         session.commit()
         loaded = True
     except SQLAlchemyError as e:
-        print(e.msg)
+        print(e.message)
         loaded = False
     finally:
         session.close()

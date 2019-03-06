@@ -108,7 +108,7 @@ def parseFile(path, filetype, userid):
         required_fields = ["UUID", "TAG_ID", "TIMESTAMP"]
         if not all([column in file_fields for column in required_fields]):
             return {"ERROR": "file does not have all required fields"}
-        if load_tagreads(df, user_id)
+        if load_tagreads(df, userid):
             return("Success")
         else:
             return("Failed")
