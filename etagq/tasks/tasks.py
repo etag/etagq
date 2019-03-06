@@ -7,7 +7,7 @@ import os, sys
 import pandas as pd
 from datetime import datetime
 
-from db_utils import *
+from db_utils import load_tagreads
 
 #Default base directory 
 basedir="/data/static/"
@@ -81,33 +81,37 @@ def parseFile(path, filetype, userid):
         # tags seen by readers
         """
         Relationship between file fields and database tables and fields
-        AnimalHitReader (animal_hit_reader) Table:
+        AnimalHitReader (animal_hit_reader) Table: ?? Is this table used?
             UUID = reader_id
             animal_id ??
             TAG_ID = tag_id_id
+        Readers (readers) Table:
+            UUID = reader_id
+            user_id ?? default to logged in user
+            description ??
+        Tags (tags) Table:
+            TAG_ID = tag_id
+            description ??
+        TagOwner (tag_owner) Table:
+            TAG_ID = tag_id
+            user_id ?? default to logged in user
+            start_time = now()
         TagReads (tag_reads) Table:
             tag_reads_id ??
             UUID = reader_id
             TAG_ID = tag_id
             user_id ?? default to logged in user
             TIMESTAMP = tag_read_time
-            field_data ??
+            public ?? default to false
         """
         # UUID is the reader ID
         required_fields = ["UUID", "TAG_ID", "TIMESTAMP"]
         if not all([column in file_fields for column in required_fields]):
             return {"ERROR": "file does not have all required fields"}
-        animalhitreader_df = df[["UUID", "TAG_ID"]]
-        # TODO: add animal_id to animalhitreader_df dataframe
-        tagreads_df = df[["UUID", "TAG_ID", "TIMESTAMP"]]
-        tagreads_df["USERID"] = userid
-        try:
-            return get_columns("animal_hit_reader", ["reader_id", "tag_id_id"])
-        except Exception as e:
-            return {"ERROR": e.message}
-
-    return("Success")
-    #TODO upsert file data into databse
+        if load_tagreads(df, user_id)
+            return("Success")
+        else:
+            return("Failed")
 
 
 @task()
