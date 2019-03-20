@@ -7,7 +7,7 @@ import os, sys
 import pandas as pd
 from datetime import datetime
 
-from db_utils import load_tagreads
+from db_utils import load_tagreads, load_locations
 
 #Default base directory 
 basedir="/data/static/"
@@ -76,6 +76,10 @@ def parseFile(path, filetype, userid):
         optional_fields = ["ENDDATE", "STUDYTYPE"]
         if not all([column in file_fields for column in required_fields]):
             return {"ERROR": "file does not have all required fields"}
+        if load_locations(df, userid):
+            return("Success")
+        else:
+            return("Failed")
 
     if filetype == "tags":
         # tags seen by readers

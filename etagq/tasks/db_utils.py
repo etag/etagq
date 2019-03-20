@@ -31,6 +31,9 @@ Animals = Base.classes.animals
 TagOwner = Base.classes.tag_owner
 TagReads = Base.classes.tag_reads
 TaggedAnimal = Base.classes.tagged_animal
+Locations = Base.classes.locations
+ReaderLocation = Base.classes.reader_location
+
 
 def load_tagreads(df, user_id):
     df.TIMESTAMP = pd.to_datetime(df.TIMESTAMP)
@@ -68,6 +71,63 @@ def load_tagreads(df, user_id):
         print("loaded {0}".format(len(df)))
     except SQLAlchemyError as e:
         print(e.message)
+        loaded = False
+        session.rollback()
+    finally:
+        session.close()
+    return loaded
+
+
+def load_locations(df, user_id):
+    df.STARTDATE = pd.to_datetime(df.STARTDATE, utc=True)
+    df.ENDDATE = pd.to_datetime(df.ENDDATE, utc=True)
+    session = Session(engine)
+    
+    # Add and update readers
+    provided_reader_ids = set(df['UUID'].tolist())
+    existing_readers = session.query(Readers).filter(Readers.reader_id.in_(provided_reader_ids))
+    existing_reader_ids = [r.reader_id for r in existing_readers]
+    non_existing_reader_ids = [r_id for r_id in provided_reader_ids if r_id not in existing_reader_ids]
+    for reader in existing_readers:
+        # Only update if this reader is "owned" by this user
+        if reader.user_id == user_id:
+            reader.description = df[df['UUID'] == reader.reader_id].NAME.values[0]
+    for reader_id in non_existing_reader_ids:
+        session.add(Readers(reader_id=reader_id, user_id=user_id, description=df[df['UUID'] == reader_id].NAME.values[0]))
+    
+    # Add and update reader_locations
+    existing_reader_locations = session.query(ReaderLocation).filter(ReaderLocation.reader_id.in_(provided_reader_ids))
+    existing_reader_location_ids = [rl.reader_id for rl in existing_reader_locations]
+    non_existing_reader_location_ids = [rl_r_id for rl_r_id in provided_reader_ids if rl_r_id not in existing_reader_location_ids]
+    # Add new location and reader_location records
+    for reader_id in non_existing_reader_location_ids:
+        for record in df[df['UUID'] == reader_id].to_dict(orient="record"):
+            existing_locations = session.query(Locations).filter(
+                Locations.name == record['DESCRIPTION'],
+                Locations.latitude == record['LATITUDE'],
+                Locations.longitude == record['LONGITUDE']
+            )
+            if existing_locations.first():
+                location = existing_locations.first()  # use first match
+            else:
+                location = Locations(name=record['DESCRIPTION'],
+                                     latitude=record['LATITUDE'],
+                                     longitude=record['LONGITUDE'],
+                                     active=True)  # TODO: if ENDDATE set and it is in the past, set to false
+                session.add(location)
+                session.flush()
+            reader_location = ReaderLocation(reader_id=reader_id,
+                                             location_id=location.location_id,
+                                             start_timestamp=record['STARTDATE'],
+                                             end_timestamp=record['ENDDATE'])
+            session.add(reader_location)
+    
+    try:
+        session.commit()
+        loaded = True
+    except SQLAlchemyError as e:
+        print(e.message)
+        session.rollback()
         loaded = False
     finally:
         session.close()
