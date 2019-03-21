@@ -82,47 +82,50 @@ def load_locations(df, user_id):
     df.STARTDATE = pd.to_datetime(df.STARTDATE, utc=True)
     df.ENDDATE = pd.to_datetime(df.ENDDATE, utc=True)
     session = Session(engine)
-    
-    # Add and update readers
+    # update existing records    
     provided_reader_ids = set(df['UUID'].tolist())
-    existing_readers = session.query(Readers).filter(Readers.reader_id.in_(provided_reader_ids))
-    existing_reader_ids = [r.reader_id for r in existing_readers]
-    non_existing_reader_ids = [r_id for r_id in provided_reader_ids if r_id not in existing_reader_ids]
-    for reader in existing_readers:
-        # Only update if this reader is "owned" by this user
-        if reader.user_id == user_id:
-            reader.description = df[df['UUID'] == reader.reader_id].NAME.values[0]
-    for reader_id in non_existing_reader_ids:
-        session.add(Readers(reader_id=reader_id, user_id=user_id, description=df[df['UUID'] == reader_id].NAME.values[0]))
-    
-    # Add and update reader_locations
-    existing_reader_locations = session.query(ReaderLocation).filter(ReaderLocation.reader_id.in_(provided_reader_ids))
-    existing_reader_location_ids = [rl.reader_id for rl in existing_reader_locations]
-    non_existing_reader_location_ids = [rl_r_id for rl_r_id in provided_reader_ids if rl_r_id not in existing_reader_location_ids]
-    # Add new location and reader_location records
-    for reader_id in non_existing_reader_location_ids:
-        for record in df[df['UUID'] == reader_id].to_dict(orient="record"):
-            existing_locations = session.query(Locations).filter(
-                Locations.name == record['DESCRIPTION'],
-                Locations.latitude == record['LATITUDE'],
-                Locations.longitude == record['LONGITUDE']
-            )
-            if existing_locations.first():
-                location = existing_locations.first()  # use first match
-            else:
-                location = Locations(name=record['DESCRIPTION'],
-                                     latitude=record['LATITUDE'],
-                                     longitude=record['LONGITUDE'],
-                                     active=True)  # TODO: if ENDDATE set and it is in the past, set to false
-                session.add(location)
-                session.flush()
-            reader_location = ReaderLocation(reader_id=reader_id,
-                                             location_id=location.location_id,
-                                             start_timestamp=record['STARTDATE'],
-                                             end_timestamp=record['ENDDATE'])
-            session.add(reader_location)
-    
+    existing_records = session.query(Readers, ReaderLocation, Locations).filter(
+        Readers.reader_id.in_(provided_reader_ids),
+        Readers.reader_id == ReaderLocation.reader_id,
+        ReaderLocation.location_id == Locations.location_id,
+        Readers.user_id == user_id
+    )
+    for record in existing_records:
+        df_record = df[df['UUID'] == record.readers.reader_id].to_dict(orient='record')[0]
+        # FIXME: This always updates, modify to update on changes only - check session.dirty to confirm
+        record.readers.description = df_record['NAME']
+        record.locations.name = df_record['DESCRIPTION']
+        record.locations.latitude = df_record['LATITUDE']
+        record.locations.longitude = df_record['LONGITUDE']
+        record.locations.active = True if not df_record['ENDDATE'] else df_record['ENDDATE'].tz_convert(None) > datetime.utcnow()
+        record.reader_location.start_timestamp = df_record['STARTDATE'] if df_record['STARTDATE'] is not pd.NaT else None
+        record.reader_location.end_timestamp = df_record['ENDDATE'] if df_record['ENDDATE'] is not pd.NaT else None
+    # add new records
     try:
+        existing_reader_ids = set([record.readers.reader_id for record in existing_records])
+        new_reader_ids = provided_reader_ids - existing_reader_ids
+        for record in df[df['UUID'].isin(new_reader_ids)].to_dict(orient='record'):
+            reader = Readers(
+                reader_id=record['UUID'],
+                user_id=user_id,
+                description=record['NAME']
+            )
+            # TODO: decide if 1:1 reader to location is okay - otherwise, change to remove duplicated locations
+            location = Locations(
+                name=record['DESCRIPTION'],
+                latitude=record['LATITUDE'],
+                longitude=record['LONGITUDE'],
+                active=True if not record['ENDDATE'] else record['ENDDATE'].tz_convert(None) > datetime.utcnow()
+            )
+            readerlocation = ReaderLocation(
+                start_timestamp=record['STARTDATE'] if record['STARTDATE'] is not pd.NaT else None,
+                end_timestamp=record['ENDDATE'] if record['ENDDATE'] is not pd.NaT else None
+            )
+            readerlocation.readers = reader
+            readerlocation.locations = location
+            session.add(readerlocation)
+            # FIXME: issue with duplicating first 3 location_ids after initial loading of db schema
+            session.flush()
         session.commit()
         loaded = True
     except SQLAlchemyError as e:
