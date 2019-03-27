@@ -103,6 +103,7 @@ def load_locations(df, user_id):
     # add new records
     try:
         existing_reader_ids = set([record.readers.reader_id for record in existing_records])
+        # FIXME: confirm new_reader_ids are owned by this user
         new_reader_ids = provided_reader_ids - existing_reader_ids
         for record in df[df['UUID'].isin(new_reader_ids)].to_dict(orient='record'):
             reader = Readers(
