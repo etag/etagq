@@ -7,7 +7,7 @@ import os, sys
 import pandas as pd
 from datetime import datetime
 
-from db_utils import load_tagreads, load_locations
+from db_utils import load_tagreads, load_locations, export_tagreads, export_locations
 
 #Default base directory 
 basedir="/data/static/"
@@ -118,9 +118,35 @@ def parseFile(path, filetype, userid):
             return("Failed")
 
 
+@task(bind=True)
+def etagDataExport(request_data):
+    """
+    This task exports data owned by logged in user to csv
+    """
+    filetypes = ["animals", "locations", "tags"]
+    filetype = request_data.get('filetype', None)
+    userid = request_data.get('userid', None)
+    actions = {"animals": export_locations, # FIXME: update export function to export_animals
+               "locations": export_locations,
+               "tags": export_tagreads
+               }
+    if filetype not in filetypes:
+        return {"ERROR": "filetype must be one of: animals, locations, tags"}
+    if not userid:
+        return {"ERROR": "missing userid"}
+    task_id = str(self.request.id)
+    #create Result Directory
+    resultDir = '/data/file_export/{0}/{1}.csv'.format(task_id, filetype)
+    os.makedirs(resultDir)
+    exported = actions[filetype](resultDir, userid)
+    if exported:
+        return resultDir
+    else:
+        return {"ERROR": "failed to export data"}
+
+
 @task()
 def etagDataUpload(local_file,request_data):
-    
     """
     This task is associated with the etag-file-upload view.
     The view URl: /api/etag/file-upload/ . Provides a mechanism 
