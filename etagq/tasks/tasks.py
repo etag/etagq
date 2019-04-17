@@ -25,11 +25,11 @@ def parseFile(path, filetype, userid):
         # details regarding tagged animals
         """
         Relationship between file fields and database tables and fields
-        Animals Table:
+        Animals Table: These are details that rarely change over time
             animal_id ??
             ANIMAL_SPECIES = species
             field_data ??
-        TaggedAnimal Table:
+        TaggedAnimal Table: These are details that can frequently change
             TAG_ID = tag_id
             animal_id ??
             TAG_STARTDATE = start_time
