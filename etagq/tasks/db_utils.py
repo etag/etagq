@@ -2,6 +2,7 @@ from celeryconfig import DB_USERNAME, DB_PASSWORD, DB_NAME, DB_HOST, DB_PORT
 import celeryconfig
 
 from datetime import datetime
+from numpy import nan
 import logging
 import pytz
 import pandas as pd
@@ -11,6 +12,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.engine.url import URL
 from sqlalchemy import create_engine, text
+from json import loads, dumps
+
 PG_DB = {
     'drivername': 'postgres',
     'username': DB_USERNAME,
@@ -35,65 +38,67 @@ Locations = Base.classes.locations
 ReaderLocation = Base.classes.reader_location
 
 
-def export_tagreads(location, user_id):
-    """
-    Exports tag read data to csv file
-    """
-    session = Session(engine)
-    records = session.query(TagReads).filter(
-        TagOwner.user_id == user_id,
-        Tags.tag_id == TagOwner.tag_id,
-        TagReads.tag_id == Tags.tag_id
-    )
-
-    df =  pd.read_sql(records.statement, session.bind)[
-        ['reader_id', 'tag_id', 'tag_read_time']
-    ]
-    df.columns = ['uuid', 'tag_id', 'timestamp']
-    try:
-        df.to_csv(location, index=False)
-        return True
-    except IOError as e:
-        print("Error creating CSV file for export")
-        print(e)
-        return False
-
-
-def export_locations(location, user_id):
-    """
-    Exports location data to csv file
-    """
-    session = Session(engine)
-    records = session.query(
-        Readers.reader_id,
-        Readers.description,
-        ReaderLocation.start_timestamp,
-        ReaderLocation.end_timestamp,
-        Locations.latitude,
-        Locations.longitude,
-        Locations.name
-    ).filter(
-        Readers.reader_id == ReaderLocation.reader_id,
-        ReaderLocation.location_id == Locations.location_id,
-        Readers.user_id == user_id
-    )
-
-    df = pd.read_sql(records.statement, session.bind)[
-        # These are the column names from the database
-        ['reader_id', 'description', 'start_timestamp', 'end_timestamp', 'latitude', 'longitude', 'name']
-    ]
-    # Translate these back to the columns used by the ingester
-    df.columns = ['uuid', 'name', 'startdate', 'enddate', 'latitude', 'longitude', 'description']
-    try:
-        df.to_csv(location, index=False)
-        return True
-    except IOError as e:
-        print("Error creating CSV file for export")
-        print(e)
-        return False
+# Export has been moved to etag-api - This block can be removed
+#def export_tagreads(location, user_id):
+#    """
+#    Exports tag read data to csv file
+#    """
+#    session = Session(engine)
+#    records = session.query(TagReads).filter(
+#        TagOwner.user_id == user_id,
+#        Tags.tag_id == TagOwner.tag_id,
+#        TagReads.tag_id == Tags.tag_id
+#    )
+#
+#    df =  pd.read_sql(records.statement, session.bind)[
+#        ['reader_id', 'tag_id', 'tag_read_time']
+#    ]
+#    df.columns = ['uuid', 'tag_id', 'timestamp']
+#    try:
+#        df.to_csv(location, index=False)
+#        return True
+#    except IOError as e:
+#        print("Error creating CSV file for export")
+#        print(e)
+#        return False
+#
+#
+#def export_locations(location, user_id):
+#    """
+#    Exports location data to csv file
+#    """
+#    session = Session(engine)
+#    records = session.query(
+#        Readers.reader_id,
+#        Readers.description,
+#        ReaderLocation.start_timestamp,
+#        ReaderLocation.end_timestamp,
+#        Locations.latitude,
+#        Locations.longitude,
+#        Locations.name
+#    ).filter(
+#        Readers.reader_id == ReaderLocation.reader_id,
+#        ReaderLocation.location_id == Locations.location_id,
+#        Readers.user_id == user_id
+#    )
+#
+#    df = pd.read_sql(records.statement, session.bind)[
+#        # These are the column names from the database
+#        ['reader_id', 'description', 'start_timestamp', 'end_timestamp', 'latitude', 'longitude', 'name']
+#    ]
+#    # Translate these back to the columns used by the ingester
+#    df.columns = ['uuid', 'name', 'startdate', 'enddate', 'latitude', 'longitude', 'description']
+#    try:
+#        df.to_csv(location, index=False)
+#        return True
+#    except IOError as e:
+#        print("Error creating CSV file for export")
+#        print(e)
+#        return False
 
 
 def load_tagreads(df, user_id):
+    # TODO: Should the timestamp be forced to UTC?
     df.TIMESTAMP = pd.to_datetime(df.TIMESTAMP)
     session = Session(engine)
     # Make sure the readers exist in the readers table - add if missing
@@ -183,7 +188,7 @@ def load_locations(df, user_id):
             readerlocation.readers = reader
             readerlocation.locations = location
             session.add(readerlocation)
-            # FIXME: issue with duplicating first 3 location_ids after initial loading of db schema
+            # FIXME: if database is initialized with test data, this will collide with existing test data
             session.flush()
         session.commit()
         loaded = True
@@ -194,3 +199,161 @@ def load_locations(df, user_id):
     finally:
         session.close()
     return loaded
+
+
+def load_animals(df, user_id):
+    df.columns = map(str.upper, df.columns)
+    df.TAG_STARTDATE = pd.to_datetime(df.TAG_STARTDATE, utc=True)
+    df.TAG_ENDDATE = pd.to_datetime(df.TAG_ENDDATE, utc=True)
+
+    session = Session(engine)
+
+    provided_tag_ids = set(df['TAG_ID'].to_list())
+    existing_tag_records = session.query(Tags, TagOwner).filter(
+        Tags.tag_id.in_(provided_tag_ids),
+        Tags.tag_id == TagOwner.tag_id
+    )
+
+    existing_tagged_animal_records = session.query(Animals, TaggedAnimal, TagOwner).filter(
+        Animals.animal_id == TaggedAnimal.animal_id,
+        TaggedAnimal.tag_id.in_(provided_tag_ids),
+        TaggedAnimal.tag_id == TagOwner.tag_id
+    )
+
+    existing_tag_ids = set([record.tags.tag_id for record in existing_tag_records if record.tag_owner.user_id == user_id])
+    non_owned_tag_ids = set([record.tags.tag_id for record in existing_tag_records if record.tag_owner.user_id != user_id])
+    new_tag_ids = provided_tag_ids - existing_tag_ids - non_owned_tag_ids
+
+    # The following data_fields and reserved_fields are used in calculating custom field_data
+    data_fields = [
+        'ANIMAL_IDENTIFYINGMARKERSTARTDATE',
+        'ANIMAL_IDENTIFYINGMARKERENDDATE',
+        'ANIMAL_ORIGINALMARKER',
+        'ANIMAL_CURRENTMARKER'
+    ]
+    reserved_fields = data_fields + [
+        'ANIMAL_SPECIES',
+        'TAG_ID',
+        'TAG_STARTDATE',
+        'TAG_ENDDATE'
+    ]
+
+    # Update existing records
+    updated = 0
+    for record in existing_tagged_animal_records:
+        # Match existing records using the following:
+        df_record = df[
+            (df['TAG_ID'] == record.tagged_animal.tag_id) &
+            (df['TAG_STARTDATE'] == record.tagged_animal.start_time)
+            ]
+        df_record_count = len(df_record)
+        if df_record_count == 1:
+            # One single match
+            changed = False
+            # update animal.species
+            if df_record['ANIMAL_SPECIES'].iloc[0] != record.animals.species:
+                record.animals.species = df_record['ANIMAL_SPECIES'].iloc[0]
+                changed = True
+                logging.info("updated animals species")
+            # Update taggedanimal.enddate
+            if (df_record['TAG_ENDDATE'].iloc[0] != record.tagged_animal.end_time) and not pd.isna(
+                    df_record['TAG_ENDDATE'].iloc[0]):
+                record.tagged_animal.end_time = df_record['TAG_ENDDATE'].iloc[0]
+                changed = True
+                logging.info("updated taggedanimal enddate")
+            elif pd.isna(df_record['TAG_ENDDATE'].iloc[0]) and (record.tagged_animal.end_time is not None):
+                record.tagged_animal.end_time = None
+                changed = True
+                logging.info("cleared taggedanimal enddate")
+            # Update animal.field_data
+            animal_field_data = loads(record.animals.field_data)
+            new_field_data = {}
+            for field in data_fields:
+                new_value = df_record[field].iloc[0] if not pd.isna(df_record[field].iloc[0]) else None
+                existing_value = animal_field_data.get(field, None)
+                if (new_value != existing_value) and not pd.isna(new_value):
+                    logging.debug(new_value, existing_value)
+                    changed = True
+                    logging.debug("animal from update ->", field.upper())
+                    new_field_data[field.upper()] = new_value
+                    logging.info("updated animals field_data")
+            if new_field_data:
+                # This overwrites previous field_data for this record
+                record.animals.field_data = dumps(new_field_data)
+            # Update taggedanimal.field_data
+            ta_data_fields = [field for field in df.columns if field not in reserved_fields]
+            tagged_animal_field_data = loads(record.tagged_animal.field_data)
+            new_ta_field_data = df_record[ta_data_fields].iloc[0].replace(nan, None).to_dict()
+            changed_fields = {
+                key: value for key, value in new_ta_field_data.items()
+                if tagged_animal_field_data.get(key, None) != value
+            }
+            if changed_fields:
+                changed = True
+                # This overwrites previous field_data for this record FIXME: Should new field data be appended?
+                tagged_animal_field_data.update(changed_fields)
+                record.tagged_animal.field_data = dumps(tagged_animal_field_data)
+                logging.info("updated tagged animal field data")
+
+            if changed:
+                updated += 1
+
+        elif df_record_count > 1:
+            # Multiple matches - this will need to handle merging records and json fields
+            # TODO: Is checking against record.animals.animal_identifyingmarkerenddate for non-none value a good test?
+            # TODO: or is the record.taggedanimal.endtime a better test?
+            logging.info("Multiple matching animal records found - this is currently not handled")
+        else:
+            # If you reach this point, something wrong happened
+            logging.error("Flagged animal record for update but no data found for update")
+
+    # Add new records
+    for record in df[df['TAG_ID'].isin(new_tag_ids)].to_dict(orient='record'):
+        animal = Animals(
+            species=record['ANIMAL_SPECIES'],
+            field_data=dumps(
+                {item.upper(): record[item] for item in data_fields
+                 if not pd.isna(record.get(item, None))
+                 }
+            )
+        )
+        logging.debug("animal from new ->", animal.field_data)
+
+        tag = Tags(tag_id=record['TAG_ID'], description="System Added - please update description")
+        tagowner = TagOwner(tag_id=record['TAG_ID'], user_id=user_id, start_time=datetime.now(pytz.utc))
+
+        # All fields that are not specifically used elsewhere should be captured in the field_data column
+        tagged_animal_field_data_keys = list(
+            set(record.keys()) - set(reserved_fields)
+        )
+        # FIXME: running same import twice indicates an update to tagged animal field data - order of json fields
+        taggedanimal = TaggedAnimal(
+            start_time=record['TAG_STARTDATE'] if record['TAG_STARTDATE'] is not pd.NaT else None,
+            end_time=record['TAG_ENDDATE'] if record['TAG_ENDDATE'] is not pd.NaT else None,
+            field_data=dumps(
+                # All remaining fields that are not used in other tables
+                {item.upper(): record[item] for item in tagged_animal_field_data_keys
+                 if not pd.isna(record.get(item, None))}
+            )
+        )
+        logging.debug("ta from new ->", taggedanimal.field_data)
+
+        taggedanimal.tags = tag
+        taggedanimal.animals = animal
+        session.add(taggedanimal)
+        session.add(tagowner)
+
+    try:
+        logging.debug("new", len(session.new))
+        logging.debug("updated", updated)
+        logging.debug("dirty", len(session.dirty))
+        logging.debug("deleted", len(session.deleted))
+        session.commit()
+        loaded = True
+    except SQLAlchemyError as e:
+        logging.error(e.message)
+        session.rollback()
+        loaded = False
+    finally:
+        session.close()
+        return loaded

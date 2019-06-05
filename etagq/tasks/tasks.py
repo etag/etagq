@@ -7,7 +7,7 @@ import os, sys
 import pandas as pd
 from datetime import datetime
 
-from db_utils import load_tagreads, load_locations, export_tagreads, export_locations
+from db_utils import load_tagreads, load_locations, load_animals
 
 #Default base directory 
 basedir="/data/static/"
@@ -49,6 +49,10 @@ def parseFile(path, filetype, userid):
         # remaining fields should be added to field_data as a single json object
         if not all([column in file_fields for column in required_fields]):
             return {"ERROR": "file does not have all required fields"}
+        if load_animals(df, userid):
+            return("Success")
+        else:
+            return("Failed")
 
     if filetype == "locations":
         # reader locations
