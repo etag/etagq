@@ -120,14 +120,14 @@ def load_tagreads(df, user_id):
     #Currently does not prevent duplicates - may need to update database schema
     for record in df.to_dict(orient="record"):
         session.add(
-           TagReads(
-               tag_id=record['TAG_ID'],
-               user_id=user_id,
-               reader_id=record['UUID'],
-               tag_read_time=record['TIMESTAMP'],
-               public=False
-           )
-       )
+            TagReads(
+                tag_id=record['TAG_ID'],
+                user_id=user_id,
+                reader_id=record['UUID'],
+                tag_read_time=record['TIMESTAMP'],
+                public=False
+            )
+        )
     try:
         session.commit()
         loaded = True
@@ -274,7 +274,7 @@ def load_animals(df, user_id):
                 if (new_value != existing_value) and not pd.isna(new_value):
                     logging.debug(new_value, existing_value)
                     changed = True
-                    logging.debug("animal from update ->", field.upper())
+                    logging.debug("animal from update -> " + field.upper())
                     new_field_data[field.upper()] = new_value
                     logging.info("updated animals field_data")
             if new_field_data:
@@ -299,10 +299,61 @@ def load_animals(df, user_id):
                 updated += 1
 
         elif df_record_count > 1:
-            # Multiple matches - this will need to handle merging records and json fields
-            # TODO: Is checking against record.animals.animal_identifyingmarkerenddate for non-none value a good test?
-            # TODO: or is the record.taggedanimal.endtime a better test?
-            logging.info("Multiple matching animal records found - this is currently not handled")
+            # Multiple matches - handle and update
+            # combine field data into one record and use the last record for updating non-field data values
+            ta_data_fields = [field for field in df.columns if field not in reserved_fields]
+            ta_combined_data_fields = df_record[ta_data_fields].replace(nan, None).to_dict()
+            df_last = df_record.iloc[-1]
+            changed = False
+            # update animal.species
+            if df_last['ANIMAL_SPECIES'] != record.animals.species:
+                record.animals.species = df_last['ANIMAL_SPECIES']
+                changed = True
+                logging.info("updated animals species")
+            # Update taggedanimal.enddate
+            if (df_last['TAG_ENDDATE'] != record.tagged_animal.end_time) and not pd.isna(df_last['TAG_ENDDATE']):
+                record.tagged_animal.end_time = df_last['TAG_ENDDATE']
+                changed = True
+                logging.info("updated taggedanimal enddate")
+            elif pd.isna(df_last['TAG_ENDDATE']) and (record.tagged_animal.end_time is not None):
+                record.tagged_animal.end_time = None
+                changed = True
+                logging.info("cleared taggedanimal enddate")
+            # Update animal.field_data
+            df_animal_field_data = pd.DataFrame(loads(record.animals.field_data))
+            if set(df_animal_field_data) == set(df_record[data_fields]):
+                # columns correspond, check for new data
+                # FIXME: index dtypes are not matching, causing this to always flag as not equal
+                if not df_animal_field_data.equals(df_record[df_animal_field_data.columns]):
+                    # FIXME: The following overwrites existing data - get previous values and append to the update
+                    record.animals.field_data = dumps(df_record[data_fields].replace(nan, None).to_dict())
+                    logging.info("updated animals with multiple field_data")
+                    changed = True
+            else:
+                # field data columns are different
+                # FIXME: The following overwrites existing data - get previous values and append to the update
+                record.animals.field_data = dumps(df_record[data_fields].replace(nan, None).to_dict())
+                logging.info("updated animals with multiple field data with change in columns")
+                changed = True
+
+            # Update taggedanimal.field_data
+            # TODO: add functionality to check for change in data
+            df_tagged_animal_field_data = pd.DataFrame(loads(record.tagged_animal.field_data))
+            if set(df_tagged_animal_field_data) == set(df_record[ta_data_fields]):
+                if not df_tagged_animal_field_data.equals(df_record[ta_data_fields].replace(nan, None)):
+                    record.tagged_animal.field_data = dumps(df_record[ta_data_fields].replace(nan, None).to_dict())
+                    logging.info("updated tagged animals with multiple field data")
+                    changed = True
+            else:
+                # field data columns are different
+                # FIXME: The following overwrites existing data - get previous values and append to the update
+                record.tagged_animal.field_data = dumps(df_record[ta_data_fields].replace(nan, None).to_dict())
+                logging.info("updated tagged animals with multiple field data with change in columns")
+                changed = True
+    
+            if changed:
+                updated += 1
+    
         else:
             # If you reach this point, something wrong happened
             logging.error("Flagged animal record for update but no data found for update")
@@ -317,7 +368,7 @@ def load_animals(df, user_id):
                  }
             )
         )
-        logging.debug("animal from new ->", animal.field_data)
+        logging.debug("animal from new -> " + animal.field_data)
 
         tag = Tags(tag_id=record['TAG_ID'], description="System Added - please update description")
         tagowner = TagOwner(tag_id=record['TAG_ID'], user_id=user_id, start_time=datetime.now(pytz.utc))
@@ -336,7 +387,7 @@ def load_animals(df, user_id):
                  if not pd.isna(record.get(item, None))}
             )
         )
-        logging.debug("ta from new ->", taggedanimal.field_data)
+        logging.debug("ta from new -> " + taggedanimal.field_data)
 
         taggedanimal.tags = tag
         taggedanimal.animals = animal
@@ -344,10 +395,10 @@ def load_animals(df, user_id):
         session.add(tagowner)
 
     try:
-        logging.debug("new", len(session.new))
-        logging.debug("updated", updated)
-        logging.debug("dirty", len(session.dirty))
-        logging.debug("deleted", len(session.deleted))
+        logging.debug("new {0}".format(len(session.new)))
+        logging.debug("updated {0}".format(updated))
+        logging.debug("dirty {0}".format(len(session.dirty)))
+        logging.debug("deleted {0}".format(len(session.deleted)))
         session.commit()
         loaded = True
     except SQLAlchemyError as e:
