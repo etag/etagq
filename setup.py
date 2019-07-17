@@ -6,7 +6,7 @@ setup(name='etagq',
       packages= find_packages(),
       install_requires=[
           'sqlalchemy==1.3.3',
-          'psycopg2==2.7.7',
+          'psycopg2==2.8.3',
           'pandas>=0.24.1',
           'pytz',
       ],
