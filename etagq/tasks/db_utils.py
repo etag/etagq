@@ -102,14 +102,14 @@ def load_tagreads(df, user_id):
     df.TIMESTAMP = pd.to_datetime(df.TIMESTAMP)
     session = Session(engine)
     # Make sure the readers exist in the readers table - add if missing
-    provided_reader_ids = set(df['UUID'].tolist())
+    provided_reader_ids = set(df['UUID'].dropna().tolist())
     existing_readers = [r.reader_id for r in session.query(Readers).filter(Readers.reader_id.in_(provided_reader_ids)) if r]
     non_existing_readers = [r_id for r_id in provided_reader_ids if r_id not in existing_readers]
     for reader_id in non_existing_readers:
         session.add(Readers(reader_id=reader_id, user_id=user_id, description="System Added - please update description"))
     
     # Make sure the tags exist in the tags table - add if missing
-    provided_tag_ids = set(df['TAG_ID'].tolist())
+    provided_tag_ids = set(df['TAG_ID'].dropna().tolist())
     existing_tags = [t.tag_id for t in session.query(Tags).filter(Tags.tag_id.in_(provided_tag_ids)) if t]
     non_existing_tags = [t_id for t_id in provided_tag_ids if t_id not in existing_tags]
     for tag_id in non_existing_tags:
@@ -146,7 +146,7 @@ def load_locations(df, user_id):
     df.ENDDATE = pd.to_datetime(df.ENDDATE, utc=True)
     session = Session(engine)
     # update existing records    
-    provided_reader_ids = set(df['UUID'].tolist())
+    provided_reader_ids = set(df['UUID'].dropna().tolist())
     existing_records = session.query(Readers, ReaderLocation, Locations).filter(
         Readers.reader_id.in_(provided_reader_ids),
         Readers.reader_id == ReaderLocation.reader_id,
@@ -208,7 +208,7 @@ def load_animals(df, user_id):
 
     session = Session(engine)
 
-    provided_tag_ids = set(df['TAG_ID'].to_list())
+    provided_tag_ids = set(df['TAG_ID'].dropna().tolist())
     existing_tag_records = session.query(Tags, TagOwner).filter(
         Tags.tag_id.in_(provided_tag_ids),
         Tags.tag_id == TagOwner.tag_id
