@@ -38,65 +38,6 @@ Locations = Base.classes.locations
 ReaderLocation = Base.classes.reader_location
 
 
-# Export has been moved to etag-api - This block can be removed
-#def export_tagreads(location, user_id):
-#    """
-#    Exports tag read data to csv file
-#    """
-#    session = Session(engine)
-#    records = session.query(TagReads).filter(
-#        TagOwner.user_id == user_id,
-#        Tags.tag_id == TagOwner.tag_id,
-#        TagReads.tag_id == Tags.tag_id
-#    )
-#
-#    df =  pd.read_sql(records.statement, session.bind)[
-#        ['reader_id', 'tag_id', 'tag_read_time']
-#    ]
-#    df.columns = ['uuid', 'tag_id', 'timestamp']
-#    try:
-#        df.to_csv(location, index=False)
-#        return True
-#    except IOError as e:
-#        print("Error creating CSV file for export")
-#        print(e)
-#        return False
-#
-#
-#def export_locations(location, user_id):
-#    """
-#    Exports location data to csv file
-#    """
-#    session = Session(engine)
-#    records = session.query(
-#        Readers.reader_id,
-#        Readers.description,
-#        ReaderLocation.start_timestamp,
-#        ReaderLocation.end_timestamp,
-#        Locations.latitude,
-#        Locations.longitude,
-#        Locations.name
-#    ).filter(
-#        Readers.reader_id == ReaderLocation.reader_id,
-#        ReaderLocation.location_id == Locations.location_id,
-#        Readers.user_id == user_id
-#    )
-#
-#    df = pd.read_sql(records.statement, session.bind)[
-#        # These are the column names from the database
-#        ['reader_id', 'description', 'start_timestamp', 'end_timestamp', 'latitude', 'longitude', 'name']
-#    ]
-#    # Translate these back to the columns used by the ingester
-#    df.columns = ['uuid', 'name', 'startdate', 'enddate', 'latitude', 'longitude', 'description']
-#    try:
-#        df.to_csv(location, index=False)
-#        return True
-#    except IOError as e:
-#        print("Error creating CSV file for export")
-#        print(e)
-#        return False
-
-
 def load_tagreads(df, user_id):
     # TODO: Should the timestamp be forced to UTC?
     df.TIMESTAMP = pd.to_datetime(df.TIMESTAMP)
