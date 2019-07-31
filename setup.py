@@ -2,7 +2,7 @@
 #ez_setup.use_setuptools()
 from setuptools import setup, find_packages
 setup(name='etagq',
-      version='0.0',
+      version='0.5',
       packages= find_packages(),
       install_requires=[
           'sqlalchemy==1.3.3',
