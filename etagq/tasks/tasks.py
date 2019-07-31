@@ -1,11 +1,6 @@
 from celery.task import task
-from dockertask import docker_task
-from subprocess import call,STDOUT
-import requests
-import json
-import os, sys
 import pandas as pd
-from datetime import datetime
+
 
 from db_utils import load_tagreads, load_locations, load_animals
 
@@ -121,32 +116,32 @@ def parseFile(path, filetype, userid):
         else:
             return("Failed")
 
-
-@task(bind=True)
-def etagDataExport(request_data):
-    """
-    This task exports data owned by logged in user to csv
-    """
-    filetypes = ["animals", "locations", "tags"]
-    filetype = request_data.get('filetype', None)
-    userid = request_data.get('userid', None)
-    actions = {"animals": export_locations, # FIXME: update export function to export_animals
-               "locations": export_locations,
-               "tags": export_tagreads
-               }
-    if filetype not in filetypes:
-        return {"ERROR": "filetype must be one of: animals, locations, tags"}
-    if not userid:
-        return {"ERROR": "missing userid"}
-    task_id = str(self.request.id)
-    #create Result Directory
-    resultDir = '/data/file_export/{0}/{1}.csv'.format(task_id, filetype)
-    os.makedirs(resultDir)
-    exported = actions[filetype](resultDir, userid)
-    if exported:
-        return resultDir
-    else:
-        return {"ERROR": "failed to export data"}
+# The following is handled by a django view in the etag_api repository
+#@task(bind=True)
+#def etagDataExport(request_data):
+#    """
+#    This task exports data owned by logged in user to csv
+#    """
+#    filetypes = ["animals", "locations", "tags"]
+#    filetype = request_data.get('filetype', None)
+#    userid = request_data.get('userid', None)
+#    actions = {"animals": export_locations, # FIXME: update export function to export_animals
+#               "locations": export_locations,
+#               "tags": export_tagreads
+#               }
+#    if filetype not in filetypes:
+#        return {"ERROR": "filetype must be one of: animals, locations, tags"}
+#    if not userid:
+#        return {"ERROR": "missing userid"}
+#    task_id = str(self.request.id)
+#    #create Result Directory
+#    resultDir = '/data/file_export/{0}/{1}.csv'.format(task_id, filetype)
+#    os.makedirs(resultDir)
+#    exported = actions[filetype](resultDir, userid)
+#    if exported:
+#        return resultDir
+#    else:
+#        return {"ERROR": "failed to export data"}
 
 
 @task()
