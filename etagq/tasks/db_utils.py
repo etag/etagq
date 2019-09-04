@@ -324,7 +324,7 @@ def load_animals(df, user_id):
                  }
             )
         )
-        logging.debug("animal records from new ->", animal.field_data)
+        logging.debug("animal records from new -> " + animal.field_data)
 
         tag = Tags(tag_id=record['TAG_ID'], description="System Added - please update description")
         tagowner = TagOwner(tag_id=record['TAG_ID'], user_id=user_id, start_time=datetime.now(pytz.utc))
@@ -343,7 +343,7 @@ def load_animals(df, user_id):
                  if not pd.isna(record.get(item, None))}
             )
         )
-        logging.debug("tagged animal record from new ->", taggedanimal.field_data)
+        logging.debug("tagged animal record from new -> " + taggedanimal.field_data)
 
         taggedanimal.tags = tag
         taggedanimal.animals = animal
