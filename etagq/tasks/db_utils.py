@@ -261,6 +261,7 @@ def load_animals(df, user_id):
                 changed = True
                 logging.info("cleared taggedanimal enddate")
             # Update animal.field_data
+            # FIXME: The following line raises "ValueError: If using all scalar values, you must pass an index" in certain situations
             df_animal_field_data = pd.DataFrame(loads(record.animals.field_data))
             if set(df_animal_field_data) == set(df_record[data_fields]):
                 # columns correspond, check for new data
@@ -300,7 +301,21 @@ def load_animals(df, user_id):
             logging.error("Flagged animal record for update but no data found for update")
 
     # Add new records
-    for record in df[df['TAG_ID'].isin(new_tag_ids)].to_dict(orient='record'):
+    for tag_id in new_tag_ids:
+        records = df[df['TAG_ID'] == tag_id]
+        if len(records) > 1:  # flatten records with same tag_id
+            logging.debug('multiple matches')
+            ta_field_names = [field for field in df.columns if field not in reserved_fields]
+            combined_data_fields = records[data_fields + ta_field_names].to_dict()
+            record = records.iloc[-1]  # default to keeping non-flattened attributes from the last record
+            for field_name, field_value in combined_data_fields.items():
+                record[field_name] = field_value
+        elif len(records) == 1:
+            logging.debug('single match')
+            record = records.to_dict(orient='record')[0]
+        else:
+            logging.debug('no matches found')
+
         animal = Animals(
             species=record['ANIMAL_SPECIES'],
             field_data=dumps(
@@ -309,7 +324,7 @@ def load_animals(df, user_id):
                  }
             )
         )
-        logging.debug("animal from new -> " + animal.field_data)
+        logging.debug("animal records from new ->", animal.field_data)
 
         tag = Tags(tag_id=record['TAG_ID'], description="System Added - please update description")
         tagowner = TagOwner(tag_id=record['TAG_ID'], user_id=user_id, start_time=datetime.now(pytz.utc))
@@ -328,7 +343,7 @@ def load_animals(df, user_id):
                  if not pd.isna(record.get(item, None))}
             )
         )
-        logging.debug("ta from new -> " + taggedanimal.field_data)
+        logging.debug("tagged animal record from new ->", taggedanimal.field_data)
 
         taggedanimal.tags = tag
         taggedanimal.animals = animal
