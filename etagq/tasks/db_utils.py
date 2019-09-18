@@ -302,11 +302,11 @@ def load_animals(df, user_id):
 
     # Add new records
     for tag_id in new_tag_ids:
-        records = df[df['TAG_ID'] == tag_id].fillna("")
+        records = df[df['TAG_ID'] == tag_id]
         if len(records) > 1:  # flatten records with same tag_id
             logging.debug('multiple matches')
             ta_field_names = [field for field in df.columns if field not in reserved_fields]
-            combined_data_fields = records[data_fields + ta_field_names].to_dict()
+            combined_data_fields = records[data_fields + ta_field_names].fillna("").to_dict()
             record = records.iloc[-1]  # default to keeping non-flattened attributes from the last record
             for field_name, field_value in combined_data_fields.items():
                 record[field_name] = field_value
