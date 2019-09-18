@@ -224,7 +224,7 @@ def load_animals(df, user_id):
             # Update taggedanimal.field_data
             ta_data_fields = [field for field in df.columns if field not in reserved_fields]
             tagged_animal_field_data = loads(record.tagged_animal.field_data)
-            new_ta_field_data = df_record[ta_data_fields].iloc[0].replace(nan, None).to_dict()
+            new_ta_field_data = df_record[ta_data_fields].iloc[0].fillna("").to_dict()
             changed_fields = {
                 key: value for key, value in new_ta_field_data.items()
                 if tagged_animal_field_data.get(key, None) != value
@@ -243,7 +243,7 @@ def load_animals(df, user_id):
             # Multiple matches - handle and update
             # combine field data into one record and use the last record for updating non-field data values
             ta_data_fields = [field for field in df.columns if field not in reserved_fields]
-            ta_combined_data_fields = df_record[ta_data_fields].replace(nan, None).to_dict()
+            ta_combined_data_fields = df_record[ta_data_fields].fillna("").to_dict()
             df_last = df_record.iloc[-1]
             changed = False
             # update animal.species
@@ -268,13 +268,13 @@ def load_animals(df, user_id):
                 # FIXME: index dtypes are not matching, causing this to always flag as not equal
                 if not df_animal_field_data.equals(df_record[df_animal_field_data.columns]):
                     # FIXME: The following overwrites existing data - get previous values and append to the update
-                    record.animals.field_data = dumps(df_record[data_fields].replace(nan, None).to_dict())
+                    record.animals.field_data = dumps(df_record[data_fields].fillna("").to_dict())
                     logging.info("updated animals with multiple field_data")
                     changed = True
             else:
                 # field data columns are different
                 # FIXME: The following overwrites existing data - get previous values and append to the update
-                record.animals.field_data = dumps(df_record[data_fields].replace(nan, None).to_dict())
+                record.animals.field_data = dumps(df_record[data_fields].fillna("").to_dict())
                 logging.info("updated animals with multiple field data with change in columns")
                 changed = True
 
@@ -282,14 +282,14 @@ def load_animals(df, user_id):
             # TODO: add functionality to check for change in data
             df_tagged_animal_field_data = pd.DataFrame(loads(record.tagged_animal.field_data))
             if set(df_tagged_animal_field_data) == set(df_record[ta_data_fields]):
-                if not df_tagged_animal_field_data.equals(df_record[ta_data_fields].replace(nan, None)):
-                    record.tagged_animal.field_data = dumps(df_record[ta_data_fields].replace(nan, None).to_dict())
+                if not df_tagged_animal_field_data.equals(df_record[ta_data_fields].fillna("")):
+                    record.tagged_animal.field_data = dumps(df_record[ta_data_fields].fillna("").to_dict())
                     logging.info("updated tagged animals with multiple field data")
                     changed = True
             else:
                 # field data columns are different
                 # FIXME: The following overwrites existing data - get previous values and append to the update
-                record.tagged_animal.field_data = dumps(df_record[ta_data_fields].replace(nan, None).to_dict())
+                record.tagged_animal.field_data = dumps(df_record[ta_data_fields].fillna("").to_dict())
                 logging.info("updated tagged animals with multiple field data with change in columns")
                 changed = True
     
