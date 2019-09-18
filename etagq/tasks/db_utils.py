@@ -302,7 +302,7 @@ def load_animals(df, user_id):
 
     # Add new records
     for tag_id in new_tag_ids:
-        records = df[df['TAG_ID'] == tag_id]
+        records = df[df['TAG_ID'] == tag_id].fillna("")
         if len(records) > 1:  # flatten records with same tag_id
             logging.debug('multiple matches')
             ta_field_names = [field for field in df.columns if field not in reserved_fields]
