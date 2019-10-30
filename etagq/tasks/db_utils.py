@@ -158,14 +158,14 @@ def load_locations(df, user_id):
             # FIXME: if database is initialized with test data, this will collide with existing test data
             session.flush()
         session.commit()
-        loaded = True
+        success = True
     except SQLAlchemyError as e:
         logging.error(e.message)
         session.rollback()
-        loaded = False
+        success = False
     finally:
         session.close()
-    return loaded
+    return {"success": success}  # TODO: add error details to output
 
 
 def load_animals(df, user_id):
@@ -382,11 +382,11 @@ def load_animals(df, user_id):
         logging.debug("dirty {0}".format(len(session.dirty)))
         logging.debug("deleted {0}".format(len(session.deleted)))
         session.commit()
-        loaded = True
+        success = True
     except SQLAlchemyError as e:
         logging.error(e.message)
         session.rollback()
-        loaded = False
+        success = False
     finally:
         session.close()
-        return loaded
+        return {"success": success}  # TODO: add error details to output
