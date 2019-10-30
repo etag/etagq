@@ -39,47 +39,73 @@ ReaderLocation = Base.classes.reader_location
 
 
 def load_tagreads(df, user_id):
+
+    reserved_fields = [
+        "TAG_ID",
+        "UUID",  # This is the reader_id
+        "TIMESTAMP"
+    ]
+
+    errors = []
     # TODO: Should the timestamp be forced to UTC?
     df.TIMESTAMP = pd.to_datetime(df.TIMESTAMP)
     session = Session(engine)
     # Make sure the readers exist in the readers table - add if missing
     provided_reader_ids = set(df['UUID'].dropna().tolist())
-    existing_readers = [r.reader_id for r in session.query(Readers).filter(Readers.reader_id.in_(provided_reader_ids)) if r]
+    existing_readers = [
+        r.reader_id for r in session.query(Readers).filter(Readers.reader_id.in_(provided_reader_ids)) if r
+    ]
     non_existing_readers = [r_id for r_id in provided_reader_ids if r_id not in existing_readers]
+    reader_id_max_length = Readers.reader_id.type.length
     for reader_id in non_existing_readers:
-        session.add(Readers(reader_id=reader_id, user_id=user_id, description="System Added - please update description"))
-    
+        if len(reader_id) > reader_id_max_length:
+            errors.append("UUID exceeds max length: {0}".format(reader_id))
+        else:
+            session.add(
+                Readers(reader_id=reader_id, user_id=user_id, description="System Added - please update description")
+            )
     # Make sure the tags exist in the tags table - add if missing
     provided_tag_ids = set(df['TAG_ID'].dropna().tolist())
     existing_tags = [t.tag_id for t in session.query(Tags).filter(Tags.tag_id.in_(provided_tag_ids)) if t]
     non_existing_tags = [t_id for t_id in provided_tag_ids if t_id not in existing_tags]
+    tag_id_max_length = Tags.tag_id.type.length
     for tag_id in non_existing_tags:
-        session.add(Tags(tag_id=tag_id, description="System Added - please update description"))
-        session.add(TagOwner(tag_id=tag_id, user_id=user_id, start_time=datetime.now(pytz.utc)))
-    
-    #FIXME: Should tag reads be unique by reader_id, tag_id, and timestamp?
-    #Currently does not prevent duplicates - may need to update database schema
-    for record in df.to_dict(orient="record"):
+        if len(tag_id) > tag_id_max_length:
+            errors.append("TAG_ID exceeds max length: {0}".format(tag_id))
+        else:
+            session.add(Tags(tag_id=tag_id, description="System Added - please update description"))
+            session.add(TagOwner(tag_id=tag_id, user_id=user_id, start_time=datetime.now(pytz.utc)))
+
+    # does not prevent duplicates, this is desired
+    for index, record in df.iterrows():
         session.add(
             TagReads(
                 tag_id=record['TAG_ID'],
                 user_id=user_id,
                 reader_id=record['UUID'],
                 tag_read_time=record['TIMESTAMP'],
+                accessory_data=record[df.columns.difference(reserved_fields)].to_json(),
                 public=False
             )
         )
     try:
+        logging.debug("new", len(session.new))
+        #logging.debug("updated", updated)
+        logging.debug("dirty", len(session.dirty))
+        logging.debug("deleted", len(session.deleted))
+        logging.debug(set(record.tag_id for record in session.dirty if record.__dict__.get("tag_id")))
+        #logging.debug("nonowned", len(non_owned_tag_ids))
+        logging.error(errors)
         session.commit()
-        loaded = True
-        print("loaded {0}".format(len(df)))
+        success = True
     except SQLAlchemyError as e:
-        print(e.message)
-        loaded = False
+        logging.error(e.message)
+        logging.debug(session.info)
         session.rollback()
+        success = False
     finally:
         session.close()
-    return loaded
+    return {"success": success} if success else {"success": success, "errors": errors}
 
 
 def load_locations(df, user_id):
@@ -134,7 +160,7 @@ def load_locations(df, user_id):
         session.commit()
         loaded = True
     except SQLAlchemyError as e:
-        print(e.message)
+        logging.error(e.message)
         session.rollback()
         loaded = False
     finally:
