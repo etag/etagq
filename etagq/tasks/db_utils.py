@@ -8,7 +8,7 @@ import pytz
 import pandas as pd
 
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import Session
 from sqlalchemy.engine.url import URL
 from sqlalchemy import create_engine, text
@@ -40,6 +40,13 @@ ReaderLocation = Base.classes.reader_location
 
 def load_tagreads(df, user_id):
 
+    # ensure that a connection to the db is established
+    global engine
+    try:
+        engine.execute("select 1")
+    except OperationalError:
+        engine = create_engine(URL(**PG_DB))
+
     reserved_fields = [
         "TAG_ID",
         "UUID",  # This is the reader_id
@@ -50,6 +57,7 @@ def load_tagreads(df, user_id):
     # TODO: Should the timestamp be forced to UTC?
     df.TIMESTAMP = pd.to_datetime(df.TIMESTAMP)
     session = Session(engine)
+    logging.info()
     # Make sure the readers exist in the readers table - add if missing
     provided_reader_ids = set(df['UUID'].dropna().tolist())
     existing_readers = [
@@ -109,6 +117,14 @@ def load_tagreads(df, user_id):
 
 
 def load_locations(df, user_id):
+
+    # ensure that a connection to the db is established
+    global engine
+    try:
+        engine.execute("select 1")
+    except OperationalError:
+        engine = create_engine(URL(**PG_DB))
+
     df.STARTDATE = pd.to_datetime(df.STARTDATE, utc=True)
     df.ENDDATE = pd.to_datetime(df.ENDDATE, utc=True)
     session = Session(engine)
@@ -169,6 +185,14 @@ def load_locations(df, user_id):
 
 
 def load_animals(df, user_id):
+
+    # ensure that a connection to the db is established
+    global engine
+    try:
+        engine.execute("select 1")
+    except OperationalError:
+        engine = create_engine(URL(**PG_DB))
+
     df.columns = map(str.upper, df.columns)
     df.TAG_STARTDATE = pd.to_datetime(df.TAG_STARTDATE, utc=True)
     df.TAG_ENDDATE = pd.to_datetime(df.TAG_ENDDATE, utc=True)
