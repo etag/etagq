@@ -57,7 +57,6 @@ def load_tagreads(df, user_id):
     # TODO: Should the timestamp be forced to UTC?
     df.TIMESTAMP = pd.to_datetime(df.TIMESTAMP)
     session = Session(engine)
-    logging.info()
     # Make sure the readers exist in the readers table - add if missing
     provided_reader_ids = set(df['UUID'].dropna().tolist())
     existing_readers = [
