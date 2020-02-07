@@ -54,7 +54,10 @@ def load_tagreads(df, user_id):
     ]
 
     # Remove empty rows
-    df.dropna(how="all")
+    df.dropna(how="all", inplace=True)
+    
+    # Remove rows with missing info in any of the reserved_fields
+    df.dropna(how="any", subset=reserved_fields, inplace=True)
     
     errors = []
     # TODO: Should the timestamp be forced to UTC?
@@ -128,7 +131,7 @@ def load_locations(df, user_id):
         engine = create_engine(URL(**PG_DB))
 
     # Remove empty rows
-    df.dropna(how="all")
+    df.dropna(how="all", inplace=True)
     
     df.STARTDATE = pd.to_datetime(df.STARTDATE, utc=True)
     df.ENDDATE = pd.to_datetime(df.ENDDATE, utc=True)
@@ -199,7 +202,7 @@ def load_animals(df, user_id):
         engine = create_engine(URL(**PG_DB))
 
     # Remove empty rows
-    df.dropna(how="all")
+    df.dropna(how="all", inplace=True)
     
     df.columns = map(str.upper, df.columns)
     df.TAG_STARTDATE = pd.to_datetime(df.TAG_STARTDATE, utc=True)
