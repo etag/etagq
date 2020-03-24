@@ -182,19 +182,7 @@ def process_to_file(ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.
       returns:
         {"file": "<url>"}
     """
-    try:
-        s_ra = float(ra)
-        s_ri = float(ri)
-        s_phi = float(phi)
-        s_n = float(n)
-        s_o = float(o)
-        s_wt = float(wt)
-        s_h = float(h)
-        s_nxy = float(nxy)
-    except ValueError:
-        return {"error": "Inputs must be numeric"}
-
-
+    
     # TODO: Add code to call backend with parameters and remove example file
 
     example_path = pkg_resources.resource_filename(__name__, 'data/BFields_WireAnt.csv')
