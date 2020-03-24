@@ -1,12 +1,18 @@
 from celery.task import task
 import pandas as pd
+import pkg_resources
+from os import mkdir
+from os.path import isdir, join
+from shutil import copyfile
 
+basedir = "/data/static/data"
 
 @task()
 def process(ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.0):
     """
       Antenna visualization backend
-      This calls the application to process the user supplied values
+      This calls the application to process the user supplied values and
+      outputs results as JSON
       args:
         ra=0.3; % [m] radius_a (think of it as the "width" if it was a rect)
         ri=0.3; % [m] radius_i (think of it as the "length" if it was a rect)
@@ -16,7 +22,7 @@ def process(ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.0):
         wt=0.1; % [m] wire thickness
         h=(1.1)*(2*wt*n); % height of the multi-coiled wire antenna
         nxy=1;  % number of turns along the xy-plane
-        
+
       returns:
         {"x":[1.0,2.0,3.0,n],
          "y":[1.0,2.0,3.0,n],
@@ -24,7 +30,6 @@ def process(ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.0):
          "BX":[1.0,2.0,3.0,n],
          "BY":[1.0,2.0,3.0,n],
          "BZ":[1.0,2.0,3.0,n]}
-         
     """
     try:
         s_ra = float(ra)
@@ -37,10 +42,10 @@ def process(ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.0):
         s_nxy = float(nxy)
     except ValueError:
         return {"error": "Inputs must be numeric"}
-    
-    
+
+
     # TODO: Add code to call backend with parameters and remove example values below
-    
+
     return {
         "x":[
             -1.48, -1.48, -1.48, -1.48, -1.48, -1.48, -1.48, -1.48, -1.48, -1.48, -1.48, -1.48, -1.48, -1.48, -1.48, -1.48,
@@ -157,3 +162,48 @@ def process(ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.0):
             -0.0000000015990849, -0.0000000012002975, -0.0000000008313756, -0.0000000004922436, -0.0000000001824253
         ]
    }
+
+
+@task(bind=True)
+def process_to_file(ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.0):
+    """
+      Antenna visualization backend
+      This calls the application to process the user supplied values
+      args:
+        ra=0.3; % [m] radius_a (think of it as the "width" if it was a rect)
+        ri=0.3; % [m] radius_i (think of it as the "length" if it was a rect)
+        phi=2;  % [deg] sets the "pitch"
+        n=2;    % number of turns going along the z-direction
+        o=1;    % orientable (clock-wise or counter clock-wise)
+        wt=0.1; % [m] wire thickness
+        h=(1.1)*(2*wt*n); % height of the multi-coiled wire antenna
+        nxy=1;  % number of turns along the xy-plane
+
+      returns:
+        {"file": "<url>"}
+    """
+    try:
+        s_ra = float(ra)
+        s_ri = float(ri)
+        s_phi = float(phi)
+        s_n = float(n)
+        s_o = float(o)
+        s_wt = float(wt)
+        s_h = float(h)
+        s_nxy = float(nxy)
+    except ValueError:
+        return {"error": "Inputs must be numeric"}
+
+
+    # TODO: Add code to call backend with parameters and remove example file
+
+    example_path = pkg_resources.resource_filename(__name__, 'data/BFields_WireAnt.csv')
+    output_path = join(basedir, self.request.id)
+    if not isdir(output_path):
+        mkdir(output_path)
+
+    output_file = join(output_path, "output.csv")
+    copyfile(example_path, output_file)
+
+    file_url = "/data/{0}/output.csv".format(self.request.id)
+    return {"file": file_url}
