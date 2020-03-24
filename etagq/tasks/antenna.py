@@ -165,7 +165,7 @@ def process(ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.0):
 
 
 @task(bind=True)
-def process_to_file(ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.0):
+def process_to_file(self, ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.0):
     """
       Antenna visualization backend
       This calls the application to process the user supplied values
