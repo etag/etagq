@@ -1,81 +1,142 @@
 from celery.task import task
-from dockertask import docker_task
-from subprocess import call,STDOUT
-import requests
-import json
-import os, sys
 import pandas as pd
-from datetime import datetime
+
+
+from db_utils import load_tagreads, load_locations, load_animals
 
 #Default base directory 
 basedir="/data/static/"
 
-hostname=os.environ.get("host_hostname", '10.195.67.43')
 
-def insert_tag_reads(row,session):
+def parseFile(path, filetype, userid):
     """
-    Checks or creates tag record. Then inserts datarow into tag_reads.
+    Parse file and check for required columns
+    """
+    df = pd.read_csv(path)
+    file_fields = list(df.columns.str.upper())
+    df.columns = map(str.upper, df.columns)  # set column headers to upper case
 
-    insert_tag_reads(row,session)
-    args:
-        row - Pandas Dataframe Row
-        session - python requests session with api token as header
-    """
-    payload={'format':'json','tag_id':row['TagID']}
-    r1=session.get('http://{0}/api/etag/tags/'.format(hostname),params=payload)
-    if r1.json()['count'] <1:
-        payload={'tag_id':row['TagID'],'name':'ETAG TAG_ID {0}'.format(row['TagID']),'description':'ETAG TAG_ID {0}'.format(row['TagID'])}
-        session.post('http://{0}/api/etag/tags/'.format(hostname),data=payload)
-    payload={'reader':row['reader_id'],'tag':row['TagID'],'tag_timestamp':row['timestamp']}
-    r2=session.post('http://{0}/api/etag/tag_reads/?format=json'.format(hostname),data=payload)
-    return r2.status_code
+    if filetype == "animals":
+        # details regarding tagged animals
+        """
+        Relationship between file fields and database tables and fields
+        Animals Table: These are details that rarely change over time
+            animal_id ??
+            ANIMAL_SPECIES = species
+            field_data ??
+        TaggedAnimal Table: These are details that can frequently change
+            TAG_ID = tag_id
+            animal_id ??
+            TAG_STARTDATE = start_time
+            TAG_ENDDATE = end_time
+            field_data ??
+        Tags Table:
+            TAG_ID = tag_id
+            description ??
+        TagOwner Table:
+            user_id ?? default to logged in user - how to handle if already exists?
+            TAG_ID = tag_id
+            TAG_STARTDATE = start_time
+            TAG_ENDDATE = end_time ??
+        """
+        required_fields = ["TAG_ID", "TAG_STARTDATE", "ANIMAL_SPECIES"]  # TODO: add required fields
+        optional_fields = ["TAG_ENDDATE"]
+        # remaining fields should be added to field_data as a single json object
+        if not all([column in file_fields for column in required_fields]):
+            return {"ERROR": "file does not have all required fields"}
+        if load_animals(df, userid):
+            return("Success")
+        else:
+            return("Failed")
 
-def etlData(reader_id,file_path,session,skipHeaderRows):
-    """ 
-    etlData(reader_id,file_path,session,skipHeaderRows)
-    args: 
-        reader_id - reader must be present in database
-        file_path - local file upload from api view
-        session - python requests session with api token as header
-        skipHeaderRows - Number of rows to skip
-    """
-    # Load pandas dataframe
-    data=pd.read_csv(file_path,sep=' ',skiprows=skipHeaderRows)
-    columnnames=["TagID","Date","Time"]
-    data.columns=columnnames
-    #add timestamp
-    data['timestamp']=pd.to_datetime(data['Date'] + ' ' + data['Time'])
-    #Trim and add reader_id to row
-    data1=data[['TagID','timestamp']]
-    data1['reader_id']=reader_id
-    #Apply function to each row of dataframe 
-    data1.apply( (lambda x: insert_tag_reads(x,session)), axis=1)
-    return "Tag Reads recored: {0}".format(len(data1.index))
+    if filetype == "locations":
+        # reader locations
+        """
+        Relationship between file fields and database tables and fields
+        Readers Table:
+           UUID = reader_id
+           DESCRIPTION = description
+           user_id ?? default to logged in user
+        Locations Table:
+           location_id ??
+           NAME = name
+           LATITUDE = latitude
+           LONGITUDE = longitude
+           active ?? default to True
+        ReaderLocation Table:
+           reader_id ??
+           location_id ??
+           STARTDATE = start_timestamp
+           ENDDATE = end_timestamp
+        """
+        # TODO: update if changes are made to the database tables
+        required_fields = ["UUID", "NAME", "STARTDATE", "LATITUDE",
+            "LONGITUDE", "DESCRIPTION"]
+        optional_fields = ["ENDDATE", "STUDYTYPE"]
+        if not all([column in file_fields for column in required_fields]):
+            return {"ERROR": "file does not have all required fields"}
+        if load_locations(df, userid):
+            return("Success")
+        else:
+            return("Failed")
+
+    if filetype == "tags":
+        # tags seen by readers
+        """
+        Relationship between file fields and database tables and fields
+        AnimalHitReader (animal_hit_reader) Table: ?? Is this table used?
+            UUID = reader_id
+            animal_id ??
+            TAG_ID = tag_id_id
+        Readers (readers) Table:
+            UUID = reader_id
+            user_id ?? default to logged in user
+            description ??
+        Tags (tags) Table:
+            TAG_ID = tag_id
+            description ??
+        TagOwner (tag_owner) Table:
+            TAG_ID = tag_id
+            user_id ?? default to logged in user
+            start_time = now()
+        TagReads (tag_reads) Table:
+            tag_reads_id ??
+            UUID = reader_id
+            TAG_ID = tag_id
+            user_id ?? default to logged in user
+            TIMESTAMP = tag_read_time
+            public ?? default to false
+        """
+        # UUID is the reader ID
+        required_fields = ["UUID", "TAG_ID", "TIMESTAMP"]
+        if not all([column in file_fields for column in required_fields]):
+            return {"ERROR": "file does not have all required fields"}
+        if load_tagreads(df, userid):
+            return("Success")
+        else:
+            return("Failed")
+
 
 @task()
-def etagDataUpload(reader_id,file_path,token,skipHeaderRows=1):
+def etagDataUpload(local_file,request_data):
     """
     This task is associated with the etag-file-upload view.
     The view URl: /api/etag/file-upload/ . Provides a mechanism 
     to upload local file and runs this task. If you are unsure 
     you should go to the upload view to run task.
 
-    etagDataUpload(reader_id,file_path,token,skipHeaderRows=1)
+    etagDataUpload(local_file,request_data)
     args:
-        reader_id - reader must exist in  database
-        file_path - local filepath (associated with etag-file-upload view
-        token - REST api token for authentication
-    kwargs:
-        skipHeaderRows - Number of rows to skip
+        local_file - local filepath (associated with etag-file-upload view
     """
-
-    headers={'Authorization':'Token {0}'.format(token)}
-    payload = {'format':'json','reader_id':reader_id}
-    s = requests.Session()
-    s.headers.update(headers)
-    r = s.get('http://{0}/api/etag/readers/'.format(hostname),params=payload)
-    if r.json()['count'] >=1:
-        return etlData(reader_id,file_path,s,int(skipHeaderRows))
-    else:
-        raise Exception('reader_id must be provided')
-
+    
+    filetypes = ["animals", "locations", "tags"]
+    filetype = request_data.get('filetype', None)
+    userid = request_data.get('userid', None)
+    if filetype not in filetypes:
+        return {"ERROR": "filetype must be one of: animals, locations, tags"}
+    if not userid:
+        return {"ERROR": "missing userid"}
+    parse_status = parseFile(local_file, filetype, userid)
+    #TODO update return to provide results to user
+    return (local_file, request_data, parse_status)
