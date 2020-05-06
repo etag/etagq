@@ -195,3 +195,37 @@ def process_to_file(self, ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, 
 
     file_url = "/data/{0}/output.csv".format(self.request.id)
     return {"file": file_url}
+
+
+@task(bind=True)
+def process_to_json(self, ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, nxy=1.0):
+    """
+      Antenna visualization backend
+      This calls the application to process the user supplied values
+      args:
+        ra=0.3; % [m] radius_a (think of it as the "width" if it was a rect)
+        ri=0.3; % [m] radius_i (think of it as the "length" if it was a rect)
+        phi=2;  % [deg] sets the "pitch"
+        n=2;    % number of turns going along the z-direction
+        o=1;    % orientable (clock-wise or counter clock-wise)
+        wt=0.1; % [m] wire thickness
+        h=(1.1)*(2*wt*n); % height of the multi-coiled wire antenna
+        nxy=1;  % number of turns along the xy-plane
+
+      returns:
+        {"file": "<url>"}
+    """
+    
+    # TODO: Add code to call backend with parameters and remove example file
+
+    example_path = pkg_resources.resource_filename(__name__, 'data/BFields_WireAnt.csv')
+    output_path = join(basedir, self.request.id)
+    if not isdir(output_path):
+        mkdir(output_path)
+
+    #TODO: change to read backend output instead of example data
+    output_file = join(output_path, "output.json")
+    pd.from_csv(example_path).to_json(output_file, orient="records")
+
+    file_url = "/data/{0}/output.json".format(self.request.id)
+    return {"file": file_url}
