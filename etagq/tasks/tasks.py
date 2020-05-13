@@ -4,9 +4,6 @@ import pandas as pd
 
 from db_utils import load_tagreads, load_locations, load_animals
 
-#Default base directory 
-basedir="/data/static/"
-
 
 def parseFile(path, filetype, userid):
     """
