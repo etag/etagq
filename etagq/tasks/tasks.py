@@ -36,8 +36,8 @@ def parseFile(path, filetype, userid):
             TAG_STARTDATE = start_time
             TAG_ENDDATE = end_time ??
         """
-        required_fields = ["TAG_ID", "TAG_STARTDATE", "ANIMAL_SPECIES"]  # TODO: add required fields
-        optional_fields = ["TAG_ENDDATE"]
+        # TODO: add required fields
+        required_fields = ["TAG_ID", "TAG_STARTDATE", "TAG_ENDDATE", "ANIMAL_SPECIES"]
         # remaining fields should be added to field_data as a single json object
         if not all([column in file_fields for column in required_fields]):
             return {"ERROR": "file does not have all required fields"}
