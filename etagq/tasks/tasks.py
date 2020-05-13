@@ -67,9 +67,9 @@ def parseFile(path, filetype, userid):
            ENDDATE = end_timestamp
         """
         # TODO: update if changes are made to the database tables
-        required_fields = ["UUID", "NAME", "STARTDATE", "LATITUDE",
-            "LONGITUDE", "DESCRIPTION"]
-        optional_fields = ["ENDDATE", "STUDYTYPE"]
+        required_fields = ["UUID", "NAME", "STARTDATE", "ENDDATE", 
+            "LATITUDE", "LONGITUDE", "DESCRIPTION"]
+        optional_fields = ["STUDYTYPE"]
         if not all([column in file_fields for column in required_fields]):
             return {"ERROR": "file does not have all required fields"}
         if load_locations(df, userid):
