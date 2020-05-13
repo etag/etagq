@@ -225,7 +225,7 @@ def process_to_json(self, ra=0.3, ri=0.3, phi=2.0, n=2.0, o=1.0, wt=0.1, h=1.0, 
 
     #TODO: change to read backend output instead of example data
     output_file = join(output_path, "output.json")
-    pd.from_csv(example_path).to_json(output_file, orient="records")
+    pd.read_csv(example_path).to_json(output_file, orient="records")
 
     file_url = "/data/{0}/output.json".format(self.request.id)
     return {"file": file_url}
