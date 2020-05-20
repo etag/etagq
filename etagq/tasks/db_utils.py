@@ -7,6 +7,8 @@ import logging
 import pytz
 import pandas as pd
 
+from pandas.errors import ParserError
+
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import Session
@@ -21,7 +23,7 @@ PG_DB = {
     'database': DB_NAME,
     'host': DB_HOST,
     'port': DB_PORT
-    }
+}
 
 Base = automap_base()
 engine = create_engine(URL(**PG_DB))
@@ -39,7 +41,6 @@ ReaderLocation = Base.classes.reader_location
 
 
 def load_tagreads(df, user_id):
-
     # ensure that a connection to the db is established
     global engine
     try:
@@ -55,16 +56,29 @@ def load_tagreads(df, user_id):
 
     # Remove empty rows
     df.dropna(how="all", inplace=True)
-    
-    # Remove rows with missing info in any of the reserved_fields
-    df.dropna(how="any", subset=reserved_fields, inplace=True)
-    
-    errors = []
-    # TODO: Should the timestamp be forced to UTC?
-    df.TIMESTAMP = pd.to_datetime(df.TIMESTAMP)
+
+    # ensure column headers are uppercase
+    df.columns = map(str.upper, df.columns)
+
+    try:
+        # Remove rows with missing info in any of the reserved_fields
+        df.dropna(how="any", subset=reserved_fields, inplace=True)
+    except KeyError as e:
+        # Missing reserved fields
+        logging.debug(e)
+        return {'error': 'Missing required fields', 'success': False}
+
+    try:
+        # TODO: Should the timestamp be forced to UTC?
+        df.TIMESTAMP = pd.to_datetime(df.TIMESTAMP)
+    except (ParserError, ValueError) as e:
+        # locale date format can cause parsing error
+        logging.debug(e)
+        return {'error': 'Could not parse timestamp', 'success': False}
+
     session = Session(engine)
     # Make sure the readers exist in the readers table - add if missing
-    provided_reader_ids = set(df['UUID'].dropna().astype(str).tolist())
+    provided_reader_ids = set(df['UUID'].dropna().astype(str).unique())
     existing_readers = [
         r.reader_id for r in session.query(Readers).filter(Readers.reader_id.in_(provided_reader_ids)) if r
     ]
@@ -72,19 +86,23 @@ def load_tagreads(df, user_id):
     reader_id_max_length = Readers.reader_id.type.length
     for reader_id in non_existing_readers:
         if len(reader_id) > reader_id_max_length:
-            errors.append("UUID exceeds max length: {0}".format(reader_id))
+            session.rollback()
+            session.close()
+            return {'error': "UUID exceeds max length: {0}".format(reader_id), 'success': False}
         else:
             session.add(
                 Readers(reader_id=reader_id, user_id=user_id, description="System Added - please update description")
             )
     # Make sure the tags exist in the tags table - add if missing
-    provided_tag_ids = set(df['TAG_ID'].dropna().astype(str).tolist())
+    provided_tag_ids = set(df['TAG_ID'].dropna().astype(str).unique())
     existing_tags = [t.tag_id for t in session.query(Tags).filter(Tags.tag_id.in_(provided_tag_ids)) if t]
     non_existing_tags = [t_id for t_id in provided_tag_ids if t_id not in existing_tags]
     tag_id_max_length = Tags.tag_id.type.length
     for tag_id in non_existing_tags:
         if len(tag_id) > tag_id_max_length:
-            errors.append("TAG_ID exceeds max length: {0}".format(tag_id))
+            session.rollback()
+            session.close()
+            return {'error': "Tag ID exceeds max length: {0}".format(tag_id), 'success': False}
         else:
             session.add(Tags(tag_id=tag_id, description="System Added - please update description"))
             session.add(TagOwner(tag_id=tag_id, user_id=user_id, start_time=datetime.now(pytz.utc)))
@@ -101,28 +119,34 @@ def load_tagreads(df, user_id):
                 public=False
             )
         )
+    error = None
     try:
-        logging.debug("new", len(session.new))
+        logging.debug(("new", len(session.new)))
         #logging.debug("updated", updated)
-        logging.debug("dirty", len(session.dirty))
-        logging.debug("deleted", len(session.deleted))
+        logging.debug(("dirty", len(session.dirty)))
+        logging.debug(("deleted", len(session.deleted)))
         logging.debug(set(record.tag_id for record in session.dirty if record.__dict__.get("tag_id")))
         #logging.debug("nonowned", len(non_owned_tag_ids))
-        logging.error(errors)
+        new = len(session.new)
         session.commit()
         success = True
     except SQLAlchemyError as e:
         logging.error(e.message)
         logging.debug(session.info)
+        new = 0
         session.rollback()
+        error = "Unexpected issue with database. No changes made."
         success = False
     finally:
         session.close()
-    return {"success": success} if success else {"success": success, "errors": errors}
+    return {
+        "success": success,
+        "new": new,
+        "error": error
+    }
 
 
 def load_locations(df, user_id):
-
     # ensure that a connection to the db is established
     global engine
     try:
@@ -132,18 +156,35 @@ def load_locations(df, user_id):
 
     # Remove empty rows
     df.dropna(how="all", inplace=True)
-    
-    df.STARTDATE = pd.to_datetime(df.STARTDATE, utc=True)
-    df.ENDDATE = pd.to_datetime(df.ENDDATE, utc=True)
+
+    # ensure column headers are uppercase
+    df.columns = map(str.upper, df.columns)
+
+    try:
+        # TODO: Should the timestamp be forced to UTC?
+        df.STARTDATE = pd.to_datetime(df.STARTDATE, utc=True)
+        df.ENDDATE = pd.to_datetime(df.ENDDATE, utc=True)
+    except (ParserError, ValueError) as e:
+        # locale date format can cause parsing error
+        logging.debug(e)
+        return {'error': 'Could not parse timestamp', 'success': False}
+    except AttributeError as e:
+        logging.debug(e)
+        return {'error': 'Missing required startdate or enddate column', 'success': False}
+
     session = Session(engine)
-    # update existing records    
-    provided_reader_ids = set(df['UUID'].dropna().astype(str).tolist())
+
+    error = None
+    # update existing records
+    provided_reader_ids = set(df['UUID'].dropna().astype(str).unique())
+    logging.debug("provided reader ids: {0}".format(provided_reader_ids))
     existing_records = session.query(Readers, ReaderLocation, Locations).filter(
         Readers.reader_id.in_(provided_reader_ids),
         Readers.reader_id == ReaderLocation.reader_id,
         ReaderLocation.location_id == Locations.location_id,
         Readers.user_id == user_id
     )
+    updated = 0
     for record in existing_records:
         df_record = df[df['UUID'] == record.readers.reader_id].to_dict(orient='record')[0]
         # FIXME: This always updates, modify to update on changes only - check session.dirty to confirm
@@ -151,15 +192,20 @@ def load_locations(df, user_id):
         record.locations.name = df_record['DESCRIPTION']
         record.locations.latitude = df_record['LATITUDE']
         record.locations.longitude = df_record['LONGITUDE']
-        record.locations.active = True if not df_record['ENDDATE'] else df_record['ENDDATE'].tz_convert(None) > datetime.utcnow()
+        record.locations.active = True if not df_record['ENDDATE'] else df_record['ENDDATE'].tz_convert(
+            None) > datetime.utcnow()
         record.reader_location.start_timestamp = df_record['STARTDATE'] if df_record['STARTDATE'] is not pd.NaT else None
         record.reader_location.end_timestamp = df_record['ENDDATE'] if df_record['ENDDATE'] is not pd.NaT else None
+        updated += 1
     # add new records
+    new = 0
     try:
         existing_reader_ids = set([record.readers.reader_id for record in existing_records])
         # FIXME: confirm new_reader_ids are owned by this user
         new_reader_ids = provided_reader_ids - existing_reader_ids
+        logging.debug("new readers: {0}".format(new_reader_ids))
         for record in df[df['UUID'].isin(new_reader_ids)].to_dict(orient='record'):
+
             reader = Readers(
                 reader_id=record['UUID'],
                 user_id=user_id,
@@ -179,21 +225,33 @@ def load_locations(df, user_id):
             readerlocation.readers = reader
             readerlocation.locations = location
             session.add(readerlocation)
+            new += 1
+            logging.debug("new entries in database: {0}".format(len(session.new)))
             # FIXME: if database is initialized with test data, this will collide with existing test data
             session.flush()
+        deleted = len(session.deleted)
         session.commit()
         success = True
     except SQLAlchemyError as e:
         logging.error(e.message)
+        new = 0
+        deleted = 0
+        updated = 0
         session.rollback()
+        error = "Unexpected issue with database. No changes made."
         success = False
     finally:
         session.close()
-    return {"success": success}  # TODO: add error details to output
+    return {
+        "success": success,
+        "error": error,
+        "new": new,
+        "updated": updated,
+        "deleted": deleted
+    }
 
 
 def load_animals(df, user_id):
-
     # ensure that a connection to the db is established
     global engine
     try:
@@ -203,28 +261,41 @@ def load_animals(df, user_id):
 
     # Remove empty rows
     df.dropna(how="all", inplace=True)
-    
+
+    # ensure column headers are uppercase
     df.columns = map(str.upper, df.columns)
-    df.TAG_STARTDATE = pd.to_datetime(df.TAG_STARTDATE, utc=True)
-    df.TAG_ENDDATE = pd.to_datetime(df.TAG_ENDDATE, utc=True)
+
+    try:
+        # TODO: Should the timestamp be forced to UTC?
+        df.TAG_STARTDATE = pd.to_datetime(df.TAG_STARTDATE, utc=True)
+        df.TAG_ENDDATE = pd.to_datetime(df.TAG_ENDDATE, utc=True)
+    except (ParserError, ValueError) as e:
+        # user locale date formatting can cause parsing error
+        logging.debug(e)
+        return {'error': 'Could not parse timestamp', 'success': False}
+    except AttributeError as e:
+        logging.debug(e)
+        return {'error': 'Missing required startdate or enddate column', 'success': False}
 
     session = Session(engine)
 
-    provided_tag_ids = set(df['TAG_ID'].dropna().astype(str).tolist())
+    provided_tag_ids = set(df['TAG_ID'].dropna().astype(str).unique())
+    logging.debug(('Unique provided tag ids', provided_tag_ids))
+
     existing_tag_records = session.query(Tags, TagOwner).filter(
         Tags.tag_id.in_(provided_tag_ids),
         Tags.tag_id == TagOwner.tag_id
     )
+    existing_tag_ids = set(
+        [record.tags.tag_id for record in existing_tag_records if record.tag_owner.user_id == user_id])
+    logging.debug(('Existing tags:', existing_tag_ids))
 
-    existing_tagged_animal_records = session.query(Animals, TaggedAnimal, TagOwner).filter(
-        Animals.animal_id == TaggedAnimal.animal_id,
-        TaggedAnimal.tag_id.in_(provided_tag_ids),
-        TaggedAnimal.tag_id == TagOwner.tag_id
-    )
+    non_owned_tag_ids = set(
+        [record.tags.tag_id for record in existing_tag_records if record.tag_owner.user_id != user_id])
+    logging.debug(('Non-owned tags', non_owned_tag_ids))
 
-    existing_tag_ids = set([record.tags.tag_id for record in existing_tag_records if record.tag_owner.user_id == user_id])
-    non_owned_tag_ids = set([record.tags.tag_id for record in existing_tag_records if record.tag_owner.user_id != user_id])
     new_tag_ids = provided_tag_ids - existing_tag_ids - non_owned_tag_ids
+    logging.debug(('New tags', new_tag_ids))
 
     # The following data_fields and reserved_fields are used in calculating custom field_data
     data_fields = [
@@ -239,6 +310,12 @@ def load_animals(df, user_id):
         'TAG_STARTDATE',
         'TAG_ENDDATE'
     ]
+
+    existing_tagged_animal_records = session.query(Animals, TaggedAnimal, TagOwner).filter(
+        Animals.animal_id == TaggedAnimal.animal_id,
+        TaggedAnimal.tag_id.in_(provided_tag_ids),
+        TaggedAnimal.tag_id == TagOwner.tag_id
+    )
 
     # Update existing records
     updated = 0
@@ -353,15 +430,16 @@ def load_animals(df, user_id):
                 record.tagged_animal.field_data = dumps(df_record[ta_data_fields].fillna("").to_dict())
                 logging.info("updated tagged animals with multiple field data with change in columns")
                 changed = True
-    
+
             if changed:
                 updated += 1
-    
+
         else:
             # If you reach this point, something wrong happened
             logging.error("Flagged animal record for update but no data found for update")
 
     # Add new records
+    new = 0
     for tag_id in new_tag_ids:
         records = df[df['TAG_ID'] == tag_id]
         if len(records) > 1:  # flatten records with same tag_id
@@ -410,18 +488,31 @@ def load_animals(df, user_id):
         taggedanimal.animals = animal
         session.add(taggedanimal)
         session.add(tagowner)
+        new += 1
 
+    error = None
     try:
-        logging.debug("new {0}".format(len(session.new)))
+        logging.debug("new entries in database: {0}".format(len(session.new)))
         logging.debug("updated {0}".format(updated))
         logging.debug("dirty {0}".format(len(session.dirty)))
         logging.debug("deleted {0}".format(len(session.deleted)))
+        deleted = len(session.deleted)
         session.commit()
         success = True
     except SQLAlchemyError as e:
         logging.error(e.message)
+        new = 0
+        deleted = 0
+        updated = 0
         session.rollback()
+        error = "Unexpected issue with database. No changes made."
         success = False
     finally:
         session.close()
-        return {"success": success}  # TODO: add error details to output
+    return {
+        "success": success,
+        "error": error,
+        "new": new,
+        "updated": updated,
+        "deleted": deleted
+    }
