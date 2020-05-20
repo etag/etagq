@@ -40,11 +40,8 @@ def parseFile(path, filetype, userid):
         required_fields = ["TAG_ID", "TAG_STARTDATE", "TAG_ENDDATE", "ANIMAL_SPECIES"]
         # remaining fields should be added to field_data as a single json object
         if not all([column in file_fields for column in required_fields]):
-            return {"ERROR": "file does not have all required fields"}
-        if load_animals(df, userid):
-            return("Success")
-        else:
-            return("Failed")
+            return {"error": "file does not have all required fields", "success": False}
+        return load_animals(df, userid)
 
     if filetype == "locations":
         # reader locations
@@ -71,11 +68,8 @@ def parseFile(path, filetype, userid):
             "LATITUDE", "LONGITUDE", "DESCRIPTION"]
         optional_fields = ["STUDYTYPE"]
         if not all([column in file_fields for column in required_fields]):
-            return {"ERROR": "file does not have all required fields"}
-        if load_locations(df, userid):
-            return("Success")
-        else:
-            return("Failed")
+            return {"error": "file does not have all required fields", "success": False}
+        return load_locations(df, userid)
 
     if filetype == "tags":
         # tags seen by readers
@@ -107,11 +101,8 @@ def parseFile(path, filetype, userid):
         # UUID is the reader ID
         required_fields = ["UUID", "TAG_ID", "TIMESTAMP"]
         if not all([column in file_fields for column in required_fields]):
-            return {"ERROR": "file does not have all required fields"}
-        if load_tagreads(df, userid):
-            return("Success")
-        else:
-            return("Failed")
+            return {"error": "file does not have all required fields", "success": False}
+        return load_tagreads(df, userid)
 
 
 @task()

@@ -2,7 +2,7 @@
 #ez_setup.use_setuptools()
 from setuptools import setup, find_packages
 setup(name='etagq',
-      version='0.8.7',
+      version='0.8.8',
       packages= find_packages(),
       package_data={'etagq':['tasks/data/*']},
       install_requires=[
